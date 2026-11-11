@@ -14,7 +14,9 @@ import {
   hashPassword, verifyPassword, setSession, clearSession, requireUser, requireAdmin, requireStaff,
   loginLimited, loginFailed, loginOk, verifyGoogleToken, randomPassword,
 } from './auth.js';
-import { importWorkbook } from './importer.js';
+import * as XLSX from 'xlsx';
+import { createBackup, restoreBackup } from './backup.js';
+import { registerEvents } from './events.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT || 3000);
@@ -38,10 +40,12 @@ app.use((req, res, next) => {
   res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'same-origin' });
   next();
 });
-// Mutating API calls must be JSON: blocks simple cross-site form posts (CSRF).
+// Mutating API calls must be JSON (or a binary backup upload): both need a CORS preflight
+// cross-site, which blocks simple cross-site form posts (CSRF).
 app.use('/api', (req, res, next) => {
-  if (!['GET', 'HEAD'].includes(req.method) && !req.is('application/json')) return res.status(415).json({ error: 'JSON required' });
-  next();
+  if (['GET', 'HEAD'].includes(req.method) || req.is('application/json')) return next();
+  if (req.path === '/restore' && req.is('application/octet-stream')) return next();
+  res.status(415).json({ error: 'JSON required' });
 });
 app.use(express.json({ limit: '12mb' }));
 
@@ -385,6 +389,9 @@ app.put('/api/members/:id/role', requireAdmin, (req, res) => {
   if (!ROLES.some((r) => r.key === role)) return res.status(400).json({ error: 'Invalid role' });
   if (!m.email) return res.status(400).json({ error: 'Member needs an email to sign in' });
   syncUsername(m.id, m.email);
+  const u = db.prepare('SELECT * FROM users WHERE member_id = ?').get(m.id);
+  if (u.role === 'admin' && role !== 'admin' && (u.id === req.user.id || adminCount() <= 1))
+    return res.status(400).json({ error: 'You cannot remove your own admin role or the last admin' });
   db.prepare('UPDATE users SET role = ? WHERE member_id = ?').run(role, m.id);
   res.json(getMember(m.id));
 });
@@ -410,23 +417,106 @@ app.post('/api/members/:id/password', requireAdmin, (req, res) => {
   res.json({ username: m.email, password: pw });
 });
 
-app.post('/api/import', requireAdmin, (req, res) => {
-  const m = /^data:[^;]*;base64,(.+)$/.exec(String(req.body?.dataUrl || ''));
-  if (!m) return res.status(400).json({ error: 'Invalid file' });
-  try {
-    res.json(importWorkbook(Buffer.from(m[1], 'base64'), { overwrite: !!req.body.overwrite }));
-  } catch (e) {
-    res.status(400).json({ error: `Import failed: ${e.message}` });
-  }
+// Excel export of all members, or only the given ids (?ids=1,2,3).
+app.get('/api/export.xlsx', requireAdmin, (req, res) => {
+  const ids = String(req.query.ids || '').split(',').map(Number).filter(Boolean);
+  const rows = listMembers().filter((m) => !ids.length || ids.includes(m.id));
+  const fmt = (f, v) => {
+    if (v == null || v === '') return '';
+    if (f.type === 'datetime') return new Date(new Date(v).getTime() + 7 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
+    if (f.type === 'number') return Number(v);
+    if ((f.type === 'photo' || f.type === 'file') && String(v).startsWith('file:')) return `${PUBLIC_URL || ''}/api/files/${String(v).slice(5)}`;
+    return String(v);
+  };
+  const header = [...FIELDS.map((f) => `${f.kh} / ${f.en}`), 'Role'];
+  const data = rows.map((m) => [...FIELDS.map((f) => fmt(f, m[f.key])), m.role || 'member']);
+  const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
+  ws['!cols'] = header.map((h, i) => ({ wch: Math.min(40, Math.max(12, ...[h, ...data.map((r) => r[i])].map((v) => String(v ?? '').length))) }));
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: data.length, c: header.length - 1 } }) };
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Members');
+  const stamp = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  res.set({
+    'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'Content-Disposition': `attachment; filename="aisarc-members-${ids.length ? 'selected' : 'all'}-${stamp}.xlsx"`,
+  });
+  res.send(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
 });
 
-app.get('/api/export.csv', requireAdmin, (req, res) => {
-  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const lines = [FIELDS.map((f) => esc(`${f.kh} / ${f.en}`)).join(',')];
-  for (const m of listMembers()) lines.push(FIELDS.map((f) => esc(m[f.key])).join(','));
-  res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="aisarc-members.csv"' });
-  res.send('\uFEFF' + lines.join('\r\n'));
+// ---------- admin: system users (admins / moderators) ----------
+const userView = (u) => ({
+  id: u.id, username: u.username, role: u.role, member_id: u.member_id, member_no: u.member_no || null,
+  name: u.name || null, has_password: !!u.password_hash,
 });
+
+app.get('/api/users', requireAdmin, (req, res) => {
+  const rows = db.prepare(`SELECT u.*, m.member_no, json_extract(m.data, '$.name_kh') AS name FROM users u
+    LEFT JOIN members m ON m.id = u.member_id WHERE u.role IN ('admin','moderator') ORDER BY u.role, u.username`).all();
+  res.json(rows.map(userView));
+});
+
+app.post('/api/users', requireAdmin, (req, res) => {
+  const username = String(req.body?.username || '').trim();
+  const password = String(req.body?.password || '');
+  const role = req.body?.role;
+  if (!/^[\w.@+-]{3,64}$/.test(username)) return res.status(400).json({ error: 'Username: 3–64 letters, numbers or . _ @ + -' });
+  if (!['admin', 'moderator'].includes(role)) return res.status(400).json({ error: 'Role must be admin or moderator' });
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  if (db.prepare('SELECT id FROM users WHERE username = ?').get(username)) return res.status(400).json({ error: 'Username already exists' });
+  db.prepare('INSERT INTO users (username, password_hash, role, must_change) VALUES (?,?,?,1)').run(username, hashPassword(password), role);
+  res.json({ ok: true });
+});
+
+const adminCount = () => db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").get().n;
+
+app.put('/api/users/:id', requireAdmin, (req, res) => {
+  const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(req.params.id));
+  if (!u) return res.status(404).json({ error: 'Not found' });
+  const role = req.body?.role;
+  const allowed = u.member_id ? ['member', 'moderator', 'admin'] : ['moderator', 'admin'];
+  if (!allowed.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  if (u.role === 'admin' && role !== 'admin' && (u.id === req.user.id || adminCount() <= 1))
+    return res.status(400).json({ error: 'You cannot remove your own admin role or the last admin' });
+  db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, u.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/users/:id/password', requireAdmin, (req, res) => {
+  const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(req.params.id));
+  if (!u) return res.status(404).json({ error: 'Not found' });
+  const pw = randomPassword();
+  db.prepare('UPDATE users SET password_hash = ?, must_change = 1 WHERE id = ?').run(hashPassword(pw), u.id);
+  res.json({ username: u.username, password: pw });
+});
+
+// Removing a system user deletes standalone accounts; member accounts are only demoted to "member".
+app.delete('/api/users/:id', requireAdmin, (req, res) => {
+  const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(req.params.id));
+  if (!u) return res.status(404).json({ error: 'Not found' });
+  if (u.id === req.user.id) return res.status(400).json({ error: 'You cannot remove yourself' });
+  if (u.role === 'admin' && adminCount() <= 1) return res.status(400).json({ error: 'Cannot remove the last admin' });
+  if (u.member_id) db.prepare("UPDATE users SET role = 'member' WHERE id = ?").run(u.id);
+  else db.prepare('DELETE FROM users WHERE id = ?').run(u.id);
+  res.json({ ok: true });
+});
+
+// ---------- admin: backup & restore ----------
+app.get('/api/backup', requireAdmin, (req, res) => {
+  const stamp = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 16).replace(/[-:T]/g, '');
+  res.set({ 'Content-Type': 'application/gzip', 'Content-Disposition': `attachment; filename="aisarc-backup-${stamp}.json.gz"` });
+  res.send(createBackup());
+});
+
+app.post('/api/restore', requireAdmin, express.raw({ type: 'application/octet-stream', limit: '500mb' }), (req, res) => {
+  if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'No file uploaded' });
+  try {
+    const r = restoreBackup(req.body);
+    clearSession(res);
+    res.json(r);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+registerEvents(app);
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 

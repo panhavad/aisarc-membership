@@ -4,9 +4,12 @@ Mobile-first membership management web app for **ស.គ.ឯ.ស.ប.ក – AIS
 
 - **Members** sign in with username/password or Google, see their live digital membership pass, and edit their own information.
 - **New members** self-register (or sign in with Google); their application waits for a moderator.
-- **Moderators** review applications and renewals: approve, or reject with a reason the member can act on.
+- **Moderators** review applications and renewals (approve, or reject with a reason the member can act on) and manage events.
 - **Admins** do everything: search, add, edit, activate/deactivate, delete (hidden in a "Danger zone"), assign roles,
-  reset passwords, edit Association Info (bank account, fee, QR), import the Google Form XLSX and export CSV.
+  reset passwords, edit Association Info (bank account, fee, QR), export members to Excel (all or selected), and
+  in the **Admin** tab create/remove system users (admins, moderators) and back up / restore the whole database.
+- **Events**: admins and moderators post events (name, location, date/time, description, seats); ACTIVE members join
+  or cancel; the joined count and participant list update live.
 - "Member since" and membership no. are set by the system/admin and cannot be changed by members.
 
 ### Membership status
@@ -39,7 +42,7 @@ On the server:
 git clone <your-repo-url> aisarc && cd aisarc
 cp .env.example .env            # edit ADMIN_PASSWORD, SESSION_SECRET, GOOGLE_CLIENT_ID ...
 docker compose up -d --build
-# import the member spreadsheet once (or use "Import" in the admin screen)
+# import the member spreadsheet once
 docker compose cp members.xlsx app:/tmp/members.xlsx
 docker compose exec app node scripts/import.js /tmp/members.xlsx
 ```
@@ -87,7 +90,12 @@ from the member's page (Account → Role). Google accounts listed in `ADMIN_EMAI
 
 ## Data
 
-Fields follow the Google Form columns (`public/fields.js`). Re-importing the XLSX adds new responses only;
-choose *Overwrite* in the admin import to refresh existing members from the sheet. Photos/certificates
-uploaded in the app are stored in the data volume and only visible to the member and admins.
-Back up with `docker run --rm -v aisarc_aisarc-data:/d -v $PWD:/b alpine tar czf /b/aisarc-backup.tgz -C /d .`
+Fields follow the Google Form columns (`public/fields.js`). Photos/certificates uploaded in the app are stored in
+the data volume and only visible to the member and staff.
+
+**Backup / restore**: Admin tab → *Download backup* produces one `.json.gz` file with the whole database and all
+uploaded files. *Restore* (inside the collapsed danger box) replaces everything with a backup file and signs everyone
+out; a safety copy of the data before the restore is kept in `/data/backups` inside the `aisarc-data` volume.
+
+The original Google Form spreadsheet can still be loaded once from the command line (there is no import button in the app):
+`docker compose exec app node scripts/import.js /tmp/members.xlsx`.

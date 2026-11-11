@@ -19,6 +19,11 @@ const ICON = {
   key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/></svg>',
   search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 5l-7 7 7 7"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3Z"/><path d="m9 12 2 2 4-4"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12Z"/><circle cx="12" cy="9" r="2.5"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  seat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.5-5 6.5-5s5.5 1.5 6.5 5M17 8h4M19 6v4"/></svg>',
 };
 
 // ---------- helpers ----------
@@ -116,9 +121,9 @@ function setTabs(active) {
   if (!u) { tabbar.hidden = true; return; }
   const tabs = [];
   if (u.member_id) tabs.push(['/pass', 'Pass', ICON.pass], ['/profile', 'Profile', ICON.user]);
-  tabs.push(['/association', 'Association', ICON.org]);
+  tabs.push(['/events', 'Events', ICON.cal], ['/association', 'Association', ICON.org]);
   if (isStaff()) tabs.push(['/admin', isAdmin() ? 'Members' : 'Review', ICON.users]);
-  tabs.push(['/password', 'Password', ICON.key]);
+  if (isAdmin()) tabs.push(['/system', 'Admin', ICON.shield]);
   tabbar.innerHTML = tabs.map(([href, label, icon]) =>
     `<a href="#${href}" class="${active === href ? 'on' : ''}">${icon}<span>${label}</span></a>`).join('');
   tabbar.hidden = false;
@@ -128,6 +133,7 @@ const header = (title, sub = '', back = '') => `
   <header class="top">
     ${back ? `<a class="icon-btn" href="#${back}" aria-label="Back">${ICON.back}</a>` : ''}
     <div style="flex:1;min-width:0"><h1>${title}</h1>${sub ? `<div class="sub">${sub}</div>` : ''}</div>
+    <a class="icon-btn" href="#/password" aria-label="Change password" title="Change password">${ICON.key}</a>
     <button class="icon-btn" data-logout aria-label="Sign out" title="Sign out">${ICON.logout}</button>
   </header>`;
 
@@ -154,7 +160,7 @@ function passCard(m) {
   return `
   <section class="pass${active ? ' on' : ''}" aria-label="Membership pass">
     <div class="pass-head">
-      <img class="pass-logo" src="${IMG('logo.png')}" alt="AISARC logo">
+      <div class="pass-brand"><img class="pass-logo" src="${IMG('logo.png')}" alt="AISARC logo"><img class="pass-org" src="${IMG('name.png')}" alt="ស.គ.ឯ.ស.ប.ក AISARC"></div>
       <div class="pass-status"><div class="pass-label">Status</div><span class="pass-pill s-${s.color}">${esc(s.key)}</span></div>
     </div>
     <div class="pass-body">
@@ -167,7 +173,6 @@ function passCard(m) {
       <div class="pass-photo">${photoHtml(m)}</div>
     </div>
     ${active ? '<div class="pass-clock"><i></i><span data-clock></span></div>' : ''}
-    <div class="pass-foot"><img src="${IMG('name.png')}" alt="ស.គ.ឯ.ស.ប.ក AISARC"></div>
   </section>`;
 }
 
@@ -428,17 +433,15 @@ async function viewAdmin() {
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
   const q = params.get('q') || '';
   let filter = params.get('s') || (isAdmin() ? 'ALL' : 'REVIEW');
+  let selecting = false;
+  const selected = new Set();
   app.innerHTML = `${header(isAdmin() ? 'Members' : 'Review', isAdmin() ? 'សមាជិក · Admin' : 'ពិនិត្យសមាជិក · Moderator')}
     <div class="search">${ICON.search}<input id="q" type="search" placeholder="Search name, phone, email, workplace, no…" value="${esc(q)}" autocomplete="off"></div>
     <div class="filters" id="filters"></div>
-    <div class="toolbar">
-      <span class="count" id="count"></span>
-      ${isAdmin() ? `<a class="btn sm" href="#/admin/new">+ Add</a>
-      <label class="btn sm light" title="Import members from the Google Form XLSX">Import<input type="file" id="imp" accept=".xlsx,.xls" hidden></label>
-      <a class="btn sm light" href="/api/export.csv" title="Download all members as CSV (Excel)">Export</a>` : ''}
-    </div>
+    <div class="toolbar" id="toolbar"></div>
     <div class="list" id="list"><div class="spin"></div></div>`;
   let rows = [];
+  let shown = [];
   const updateUrl = () => {
     const p = new URLSearchParams();
     if ($('#q').value) p.set('q', $('#q').value);
@@ -447,20 +450,32 @@ async function viewAdmin() {
     history.replaceState(null, '', `#${h}`);
     sessionStorage.setItem('adminList', h);
   };
+  const renderToolbar = () => {
+    const count = `<span class="count">${selecting ? `${selected.size} selected` : `${shown.length} member${shown.length === 1 ? '' : 's'}`}</span>`;
+    if (!isAdmin()) return ($('#toolbar').innerHTML = count);
+    $('#toolbar').innerHTML = selecting
+      ? `${count}<button class="btn sm light" data-act="all">${shown.length && shown.every((m) => selected.has(m.id)) ? 'Clear all' : 'Select all'}</button>
+         <button class="btn sm" data-act="export-sel" ${selected.size ? '' : 'disabled'}>Export selected</button>
+         <button class="btn sm light" data-act="cancel">Cancel</button>`
+      : `${count}<a class="btn sm" href="#/admin/new">+ Add</a>
+         <button class="btn sm light" data-act="select">Select</button>
+         <button class="btn sm light" data-act="export-all" title="Download all members as Excel">Export all</button>`;
+  };
   const render = () => {
     const counts = Object.fromEntries(STATUSES.map((s) => [s.key, rows.filter((m) => m.status === s.key).length]));
     $('#filters').innerHTML = [['ALL', 'All', rows.length], ...STATUSES.map((s) => [s.key, s.key[0] + s.key.slice(1).toLowerCase(), counts[s.key]])]
       .map(([k, l, n]) => `<button type="button" data-f="${k}" class="${filter === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('');
-    const shown = filter === 'ALL' ? rows : rows.filter((m) => m.status === filter);
-    $('#count').textContent = `${shown.length} member${shown.length === 1 ? '' : 's'}`;
+    shown = filter === 'ALL' ? rows : rows.filter((m) => m.status === filter);
     $('#list').innerHTML = shown.length ? shown.map((m) => `
-      <a class="mrow" href="#/admin/m/${m.id}">
+      <a class="mrow${selecting && selected.has(m.id) ? ' sel' : ''}" href="#/admin/m/${m.id}" data-id="${m.id}">
+        ${selecting ? `<input type="checkbox" class="pick" tabindex="-1" ${selected.has(m.id) ? 'checked' : ''} aria-label="Select">` : ''}
         <div class="avatar">${photoHtml(m)}</div>
         <div class="info"><div class="n1">${esc(m.name_kh)} · ${esc(m.name_en)}</div>
           <div class="n2">${esc(m.member_no || 'New applicant')} · ${esc(m.phone || m.email || '')}</div>
           <div class="n2">${esc(m.workplace || '')}</div></div>
         ${chip(m)}
       </a>`).join('') : '<div class="empty">No members found</div>';
+    renderToolbar();
   };
   const load = async (term) => {
     try { rows = await api(`/api/members?q=${encodeURIComponent(term)}`); render(); } catch (e) { toast(e.message, true); }
@@ -478,15 +493,26 @@ async function viewAdmin() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => { updateUrl(); load($('#q').value); }, 200);
   });
-  $('#imp')?.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const overwrite = confirm('Overwrite existing members with data from this file?\n\nOK = overwrite, Cancel = only add new members');
-    try {
-      const r = await api('/api/import', { body: { dataUrl: await readFile(file), overwrite } });
-      toast(`Imported ${r.inserted} new, ${r.updated} updated, ${r.skipped} skipped`);
-      load($('#q').value);
-    } catch (err) { toast(err.message, true); }
+  // In select mode, tapping a row toggles it instead of opening the member.
+  $('#list').addEventListener('click', (e) => {
+    const row = e.target.closest('.mrow');
+    if (!row || !selecting) return;
+    e.preventDefault();
+    const id = Number(row.dataset.id);
+    selected.has(id) ? selected.delete(id) : selected.add(id);
+    render();
+  });
+  $('#toolbar').addEventListener('click', (e) => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'select') { selecting = true; render(); }
+    if (act === 'cancel') { selecting = false; selected.clear(); render(); }
+    if (act === 'all') {
+      const all = shown.every((m) => selected.has(m.id));
+      shown.forEach((m) => (all ? selected.delete(m.id) : selected.add(m.id)));
+      render();
+    }
+    if (act === 'export-all') location.href = '/api/export.xlsx';
+    if (act === 'export-sel' && selected.size) location.href = `/api/export.xlsx?ids=${[...selected].join(',')}`;
   });
 }
 
@@ -612,6 +638,228 @@ async function viewAdminEdit(id) {
   });
 }
 
+// ---------- admin section: system users + backup / restore ----------
+async function viewSystem() {
+  app.className = '';
+  app.innerHTML = `${header('Admin', 'គ្រប់គ្រងប្រព័ន្ធ · System')}
+    <section class="card"><h2>អ្នកប្រើប្រព័ន្ធ <small>System users</small></h2>
+      <p class="hint" style="text-align:left;margin-top:0">Admins have full access. Moderators can review members and manage events.</p>
+      <div id="users"><div class="spin"></div></div>
+    </section>
+    <form class="card" id="nu" autocomplete="off">
+      <h2>បន្ថែមអ្នកប្រើ <small>Add system user</small></h2>
+      <div class="grid2">
+        <label class="field"><span class="lbl">Username</span><input name="username" required autocapitalize="none"></label>
+        <label class="field"><span class="lbl">Role</span><select name="role"><option value="moderator">Moderator</option><option value="admin">Admin</option></select></label>
+        <label class="field"><span class="lbl">Temporary password<small>At least 8 characters – they must change it at first sign-in</small></span><input name="password" type="text" minlength="8" required></label>
+      </div>
+      <button class="btn block" type="submit">Create user</button>
+      <p class="hint" style="text-align:left">To give a <b>member</b> moderator/admin rights, open them in Members → Account → Role.</p>
+    </form>
+    <section class="card"><h2>បម្រុងទុក និង ស្ដារ <small>Backup &amp; restore</small></h2>
+      <p style="font-size:14px;margin-top:0">The backup contains the whole database (members, logins, events, association info) and all uploaded photos/files.</p>
+      <div class="actions"><a class="btn" href="/api/backup">⬇ Download backup</a></div>
+      <details class="danger"><summary>Restore from a backup file</summary>
+        <p>Restoring <b>replaces all current data</b> with the backup and signs everyone out. A safety copy of the current data is saved on the server first.</p>
+        <div class="actions"><input type="file" id="rfile" accept=".gz,.json,application/gzip" style="flex:1;min-width:200px"><button class="btn danger" id="restore" disabled>Restore</button></div>
+      </details>
+    </section>
+    <a class="btn block light" href="#/association/edit">Edit association info</a>`;
+
+  const loadUsers = async () => {
+    try {
+      const users = await api('/api/users');
+      $('#users').innerHTML = `<div class="ulist">${users.map((u) => `
+        <div class="urow" data-id="${u.id}">
+          <div class="info"><div class="n1">${esc(u.username)}${u.id === state.user.id ? ' <small>(you)</small>' : ''}</div>
+            <div class="n2">${u.member_no ? `Member ${esc(u.member_no)} · ${esc(u.name || '')}` : 'System account'}</div></div>
+          <select data-role ${u.id === state.user.id ? 'disabled' : ''}>
+            ${(u.member_id ? ['member', 'moderator', 'admin'] : ['moderator', 'admin']).map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}
+          </select>
+          <button class="icon-btn" data-reset title="Reset password">${ICON.key}</button>
+          ${u.id === state.user.id ? '' : `<button class="icon-btn" data-del title="${u.member_id ? 'Remove staff role' : 'Delete user'}">✕</button>`}
+        </div>`).join('')}</div>`;
+    } catch (e) { toast(e.message, true); }
+  };
+  loadUsers();
+
+  $('#users').addEventListener('change', async (e) => {
+    if (!e.target.matches('[data-role]')) return;
+    const id = e.target.closest('.urow').dataset.id;
+    try { await api(`/api/users/${id}`, { method: 'PUT', body: { role: e.target.value } }); toast('Role updated ✓'); } catch (err) { toast(err.message, true); }
+    loadUsers();
+  });
+  $('#users').addEventListener('click', async (e) => {
+    const row = e.target.closest('.urow');
+    if (!row) return;
+    const name = row.querySelector('.n1').textContent;
+    if (e.target.closest('[data-del]')) {
+      if (!confirm(`Remove ${name}?`)) return;
+      try { await api(`/api/users/${row.dataset.id}`, { method: 'DELETE', body: {} }); toast('Removed'); loadUsers(); } catch (err) { toast(err.message, true); }
+    }
+    if (e.target.closest('[data-reset]')) {
+      if (!confirm(`Generate a new temporary password for ${name}?`)) return;
+      try {
+        const r = await api(`/api/users/${row.dataset.id}/password`, { body: {} });
+        const d = modal(`<h3 style="margin-top:0">Temporary password</h3>
+          <div class="field"><span class="lbl">Username</span><div class="mono">${esc(r.username)}</div></div>
+          <div class="field"><span class="lbl">Password</span><div class="mono">${esc(r.password)}</div></div>
+          <button class="btn block" data-close>Done</button>`);
+        d.querySelector('[data-close]').onclick = () => d.close();
+      } catch (err) { toast(err.message, true); }
+    }
+  });
+  $('#nu').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target.elements;
+    try {
+      await api('/api/users', { body: { username: f.username.value.trim(), role: f.role.value, password: f.password.value } });
+      toast('User created ✓');
+      e.target.reset();
+      loadUsers();
+    } catch (err) { toast(err.message, true); }
+  });
+  $('#rfile').addEventListener('change', (e) => { $('#restore').disabled = !e.target.files[0]; });
+  $('#restore').addEventListener('click', async () => {
+    const file = $('#rfile').files[0];
+    if (!file || !confirm(`Restore "${file.name}"?\n\nALL current data will be replaced and everyone will be signed out.`)) return;
+    $('#restore').disabled = true;
+    toast('Restoring…');
+    try {
+      const res = await fetch('/api/restore', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file, credentials: 'same-origin' });
+      const r = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(r.error || 'Restore failed');
+      alert(`Restore complete.\nMembers: ${r.counts.members}, users: ${r.counts.users}, events: ${r.counts.events || 0}, files: ${r.counts.files}\n\nPlease sign in again.`);
+      state.user = null;
+      state.checked = true;
+      go('/login');
+    } catch (err) { toast(err.message, true); $('#restore').disabled = false; }
+  });
+}
+
+// ---------- events ----------
+const fmtEventTime = (e) => {
+  const start = new Date(e.starts_at);
+  const day = start.toLocaleDateString('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const t = (d) => d.toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+  return `${day} · ${t(start)}${e.ends_at ? `–${t(new Date(e.ends_at))}` : ''}`;
+};
+const seatsText = (e) => (e.seats ? `${e.joined_count} / ${e.seats} joined · ${e.seats_left} left` : `${e.joined_count} joined · unlimited seats`);
+const seatBar = (e) => (e.seats ? `<div class="bar"><i style="width:${Math.min(100, (e.joined_count / e.seats) * 100)}%"></i></div>` : '');
+
+let livePoll;
+async function viewEvents() {
+  app.className = '';
+  app.innerHTML = `${header('Events', 'ព្រឹត្តិការណ៍')}
+    ${isStaff() ? '<div class="actions" style="margin-bottom:12px"><a class="btn" href="#/events/new">+ New event</a></div>' : ''}
+    <div class="elist" id="elist"><div class="spin"></div></div>`;
+  const load = async () => {
+    if (!$('#elist')) return clearInterval(livePoll);
+    try {
+      const evs = await api('/api/events');
+      $('#elist').innerHTML = evs.length ? evs.map((e) => `
+        <a class="ecard${e.past ? ' past' : ''}" href="#/events/${e.id}">
+          <div class="edate"><b>${esc(new Date(e.starts_at).toLocaleDateString('en-GB', { timeZone: TZ, day: 'numeric' }))}</b>
+            <span>${esc(new Date(e.starts_at).toLocaleDateString('en-GB', { timeZone: TZ, month: 'short' }))}</span></div>
+          <div class="info"><div class="n1">${esc(e.title)}</div>
+            <div class="n2">${ICON.clock}${esc(fmtEventTime(e))}</div>
+            ${e.location ? `<div class="n2">${ICON.pin}${esc(e.location)}</div>` : ''}
+            <div class="n2">${ICON.seat}${esc(seatsText(e))}</div>${seatBar(e)}</div>
+          ${e.joined ? '<span class="chip c-green">Joined</span>' : e.past ? '<span class="chip c-grey">Ended</span>' : e.seats && !e.seats_left ? '<span class="chip c-red">Full</span>' : ''}
+        </a>`).join('') : '<div class="empty">No events yet</div>';
+    } catch (err) { toast(err.message, true); }
+  };
+  await load();
+  clearInterval(livePoll);
+  livePoll = setInterval(load, 15000);
+}
+
+async function viewEvent(id) {
+  app.className = '';
+  app.innerHTML = '<div class="spin"></div>';
+  const render = (e) => {
+    const canJoin = state.user.member_id && !e.past;
+    const member = state.member;
+    const full = e.seats && !e.seats_left;
+    app.innerHTML = `${header('Event', 'ព្រឹត្តិការណ៍', '/events')}
+      <section class="card event-detail">
+        <h2 style="font-size:20px;line-height:1.4">${esc(e.title)}</h2>
+        <dl class="kv">
+          <dt>${ICON.clock}</dt><dd>${esc(fmtEventTime(e))}</dd>
+          ${e.location ? `<dt>${ICON.pin}</dt><dd>${esc(e.location)}</dd>` : ''}
+          <dt>${ICON.seat}</dt><dd><span class="live-dot"></span><span id="seats">${esc(seatsText(e))}</span>${seatBar(e)}</dd>
+        </dl>
+        ${e.description ? `<p class="pre" style="font-size:14px;line-height:1.7">${esc(e.description)}</p>` : ''}
+        ${canJoin ? (e.joined
+          ? '<div class="notice green" style="margin-bottom:0"><b>✓ You joined this event</b><div class="actions"><button class="btn sm light" id="leave">Cancel my seat</button></div></div>'
+          : member?.status !== 'ACTIVE' ? '<div class="notice grey" style="margin-bottom:0">Only ACTIVE members can join events.</div>'
+          : `<button class="btn block" id="join" ${full ? 'disabled' : ''}>${full ? 'Event is full' : 'Join this event · ចូលរួម'}</button>`)
+          : e.past ? '<div class="notice grey" style="margin-bottom:0">This event has ended.</div>' : ''}
+      </section>
+      <section class="card"><h2>អ្នកចូលរួម <small>Joined members (${e.joined_count}) · live</small></h2>
+        ${e.participants.length ? `<div class="plist">${e.participants.map((p, i) => `
+          <div class="prow"><span class="pn">${i + 1}</span><div class="info"><div class="n1">${esc(p.name_kh)} · ${esc(p.name_en)}</div>
+          ${p.member_no ? `<div class="n2">${esc(p.member_no)} · ${esc(p.phone || '')}</div>` : ''}</div></div>`).join('')}</div>`
+          : '<div class="empty" style="padding:16px 0">No one has joined yet</div>'}
+      </section>
+      ${isStaff() ? `<div class="actions"><a class="btn light" href="#/events/${e.id}/edit">Edit event</a><button class="btn danger" id="edel">Delete event</button></div>` : ''}`;
+    const act = async (method) => {
+      try { await api(`/api/events/${id}/join`, { method, body: {} }); toast(method === 'POST' ? 'Joined ✓' : 'Seat cancelled'); refresh(); } catch (err) { toast(err.message, true); refresh(); }
+    };
+    $('#join')?.addEventListener('click', () => act('POST'));
+    $('#leave')?.addEventListener('click', () => confirm('Cancel your seat?') && act('DELETE'));
+    $('#edel')?.addEventListener('click', async () => {
+      if (!confirm(`Delete "${e.title}"? Everyone who joined will be removed.`)) return;
+      try { await api(`/api/events/${id}`, { method: 'DELETE', body: {} }); toast('Event deleted'); go('/events'); } catch (err) { toast(err.message, true); }
+    });
+  };
+  const refresh = async () => {
+    try { render(await api(`/api/events/${id}`)); } catch (err) { toast(err.message, true); clearInterval(livePoll); go('/events'); }
+  };
+  await refresh();
+  // Live seat count: refresh while this page is open (skip while the user is interacting with a dialog).
+  clearInterval(livePoll);
+  livePoll = setInterval(() => {
+    if (!location.hash.startsWith(`#/events/${id}`) || location.hash.endsWith('/edit')) return clearInterval(livePoll);
+    if (!document.querySelector('dialog[open]')) refresh();
+  }, 5000);
+}
+
+async function viewEventEdit(id) {
+  app.className = '';
+  const isNew = id === 'new';
+  let e = { title: '', location: '', description: '', seats: 0, starts_at: '', ends_at: '' };
+  if (!isNew) {
+    try { e = await api(`/api/events/${id}`); } catch (err) { toast(err.message, true); return go('/events'); }
+  }
+  app.innerHTML = `${header(isNew ? 'New event' : 'Edit event', 'ព្រឹត្តិការណ៍', isNew ? '/events' : `/events/${id}`)}
+    <form class="card" id="ef" novalidate>
+      <label class="field"><span class="lbl">ឈ្មោះព្រឹត្តិការណ៍ *<small>Event name</small></span><input name="title" required value="${esc(e.title)}"></label>
+      <label class="field"><span class="lbl">ទីកន្លែង<small>Location</small></span><input name="location" value="${esc(e.location)}"></label>
+      <div class="grid2" style="margin-bottom:14px">
+        <label class="field"><span class="lbl">ចាប់ផ្ដើម *<small>Starts (date &amp; time)</small></span><input type="datetime-local" name="starts_at" required value="${esc(toLocalInput(e.starts_at))}"></label>
+        <label class="field"><span class="lbl">បញ្ចប់<small>Ends (optional)</small></span><input type="datetime-local" name="ends_at" value="${esc(toLocalInput(e.ends_at))}"></label>
+      </div>
+      <label class="field"><span class="lbl">ចំនួនកៅអី<small>Seats available (0 = unlimited)</small></span>
+        <div class="unit"><input type="number" name="seats" min="0" step="1" inputmode="numeric" value="${esc(e.seats)}"><span>កៅអី</span></div></label>
+      <label class="field"><span class="lbl">ការពិពណ៌នា<small>Description</small></span><textarea name="description" rows="6">${esc(e.description)}</textarea></label>
+      <button class="btn block" type="submit">${isNew ? 'Publish event' : 'Save changes'}</button>
+    </form>`;
+  $('#ef').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const f = ev.target.elements;
+    const body = {
+      title: f.title.value, location: f.location.value, description: f.description.value, seats: f.seats.value,
+      starts_at: fromLocalInput(f.starts_at.value), ends_at: fromLocalInput(f.ends_at.value),
+    };
+    try {
+      const r = await api(isNew ? '/api/events' : `/api/events/${id}`, { method: isNew ? 'POST' : 'PUT', body });
+      toast('Saved ✓');
+      go(`/events/${r.id}`);
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
 // ---------- login / register ----------
 const brand = `<div class="brand"><img src="${IMG('logo.png')}" alt="AISARC logo"><img class="name" src="${IMG('name.png')}" alt="ស.គ.ឯ.ស.ប.ក AISARC">
   <p>ប្រព័ន្ធគ្រប់គ្រងសមាជិក · Membership Portal</p></div>`;
@@ -733,11 +981,20 @@ async function route() {
   if (state.user.must_change && path !== '/password') return go('/password');
 
   window.scrollTo(0, 0);
+  clearInterval(livePoll);
   if (path === '/pass' && state.member) { setTabs('/pass'); return viewPass(); }
   if (path === '/profile' && state.member) { setTabs('/profile'); return viewProfile(); }
-  if (path === '/password') { setTabs('/password'); return viewPassword(); }
+  if (path === '/password') { setTabs(''); return viewPassword(); }
+  if (path === '/events') { setTabs('/events'); return viewEvents(); }
+  const ev = path.match(/^\/events\/(\d+|new)(\/edit)?$/);
+  if (ev) {
+    setTabs('/events');
+    if (ev[1] === 'new' || ev[2]) return isStaff() ? viewEventEdit(ev[1]) : go('/events');
+    return viewEvent(ev[1]);
+  }
   if (path === '/association') { setTabs('/association'); return viewAssociation(); }
-  if (path === '/association/edit' && isAdmin()) { setTabs('/association'); return viewAssociation(true); }
+  if (path === '/association/edit' && isAdmin()) { setTabs('/system'); return viewAssociation(true); }
+  if (path === '/system' && isAdmin()) { setTabs('/system'); return viewSystem(); }
   if (path === '/admin' && isStaff()) { setTabs('/admin'); return viewAdmin(); }
   const mm = path.match(/^\/admin\/(?:m\/(\d+)|(new))$/);
   if (mm && isStaff()) { setTabs('/admin'); return viewAdminEdit(mm[1] || mm[2]); }

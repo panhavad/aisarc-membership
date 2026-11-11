@@ -30,8 +30,17 @@ export function verifyPassword(pw, stored) {
 const b64 = (s) => Buffer.from(s).toString('base64url');
 const sign = (s) => crypto.createHmac('sha256', SECRET).update(s).digest('base64url');
 
+// Bumping the session version (e.g. after a database restore) signs everyone out.
+export function sessionVersion() {
+  return Number(db.prepare("SELECT value FROM settings WHERE key = 'session_version'").get()?.value || 0);
+}
+export function bumpSessionVersion(min = 0) {
+  const v = Math.max(sessionVersion(), min) + 1;
+  db.prepare("INSERT INTO settings (key, value) VALUES ('session_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(v));
+}
+
 export function setSession(res, user) {
-  const payload = b64(JSON.stringify({ uid: user.id, exp: Math.floor(Date.now() / 1000) + MAX_AGE }));
+  const payload = b64(JSON.stringify({ uid: user.id, v: sessionVersion(), exp: Math.floor(Date.now() / 1000) + MAX_AGE }));
   res.cookie(COOKIE, `${payload}.${sign(payload)}`, {
     httpOnly: true, sameSite: 'lax', secure: SECURE, maxAge: MAX_AGE * 1000, path: '/',
   });
@@ -58,8 +67,8 @@ export function sessionUser(req) {
   const expected = sign(payload);
   if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
   try {
-    const { uid, exp } = JSON.parse(Buffer.from(payload, 'base64url').toString());
-    if (exp < Date.now() / 1000) return null;
+    const { uid, v = 0, exp } = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    if (exp < Date.now() / 1000 || v !== sessionVersion()) return null;
     return db.prepare('SELECT id, username, role, member_id, must_change FROM users WHERE id = ?').get(uid) || null;
   } catch {
     return null;

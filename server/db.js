@@ -28,6 +28,24 @@ db.exec(`
     must_change INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    location TEXT,
+    starts_at TEXT NOT NULL,
+    ends_at TEXT,
+    description TEXT,
+    seats INTEGER NOT NULL DEFAULT 0,
+    created_by TEXT,
+    created_at TEXT,
+    updated_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS event_participants (
+    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    joined_at TEXT NOT NULL,
+    PRIMARY KEY (event_id, member_id)
+  );
 `);
 
 const now = () => new Date().toISOString();
@@ -141,13 +159,13 @@ export function saveMember(id, fields) {
     if (!cols.member_no) cols.member_no = nextMemberNo();
     if (!cols.joined_at) cols.joined_at = now();
   }
+  // node:sqlite cannot bind `undefined` (Node 24), so missing values must be stored as NULL.
+  const vals = [cols.member_no ?? null, cols.email ?? null, cols.joined_at ?? null, JSON.stringify(data), now()];
   if (cur) {
-    db.prepare('UPDATE members SET member_no=?, email=?, joined_at=?, data=?, updated_at=? WHERE id=?')
-      .run(cols.member_no, cols.email ?? null, cols.joined_at, JSON.stringify(data), now(), id);
+    db.prepare('UPDATE members SET member_no=?, email=?, joined_at=?, data=?, updated_at=? WHERE id=?').run(...vals, id);
     return id;
   }
-  const r = db.prepare('INSERT INTO members (member_no, email, joined_at, data, updated_at) VALUES (?,?,?,?,?)')
-    .run(cols.member_no, cols.email ?? null, cols.joined_at, JSON.stringify(data), now());
+  const r = db.prepare('INSERT INTO members (member_no, email, joined_at, data, updated_at) VALUES (?,?,?,?,?)').run(...vals);
   return Number(r.lastInsertRowid);
 }
 

@@ -47,8 +47,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: url(/img/logo.png?v=2) center/contain no-repeat; opacity: .06; filter: grayscale(1) brightness(3);
   pointer-events: none;
 }
-.pass-head { display: flex; justify-content: space-between; align-items: flex-start; }
-.pass-logo { width: 46px; height: 46px; border-radius: 50%; background: #fff; padding: 2px; }
+.pass-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; position: relative; z-index: 1; }
+.pass-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pass-logo { width: 68px; height: 68px; border-radius: 50%; background: #fff; padding: 2px; flex: none; }
+.pass-org { height: 52px; width: auto; filter: brightness(0) invert(1); }
 .pass-label { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; opacity: .75; }
 .pass-val { font-size: 15px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; }
 .pass-status { text-align: right; }
@@ -59,9 +61,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
   transform: translateX(-100%); animation: shine 3s ease-in-out infinite;
 }
 @keyframes shine { 0% { transform: translateX(-100%); } 55%, 100% { transform: translateX(100%); } }
-.pass-clock {
-  position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
-  font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 600; letter-spacing: .5px; margin-bottom: 8px;
+.pass-clock { /* always the bottom-most line of the card */
+  position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px;
+  font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 600; letter-spacing: .5px;
 }
 .pass-clock i { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; animation: pulse 1.6s infinite; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(74,222,128,.7); } 70% { box-shadow: 0 0 0 8px rgba(74,222,128,0); } 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); } }
@@ -70,14 +72,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .pass-info .en { font-size: 12px; opacity: .85; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; }
 .pass-info .pass-val.kh { font-size: 17px; text-transform: none; letter-spacing: 0; line-height: 1.35; }
 .pass-photo { /* same proportions and corner shape as the card */
-  width: 40%; aspect-ratio: 0.72; border-radius: 14px; flex: none; overflow: hidden;
-  background: rgba(255, 255, 255, .15); display: grid; place-items: center; font-size: 34px; font-weight: 700;
+  width: 34%; aspect-ratio: 0.72; border-radius: 12px; flex: none; overflow: hidden;
+  background: rgba(255, 255, 255, .15); display: grid; place-items: center; font-size: 30px; font-weight: 700;
   box-shadow: 0 0 0 4px rgba(255, 255, 255, .12);
 }
 .pass-photo img { width: 100%; height: 100%; object-fit: cover; }
-.pass-foot { display: flex; align-items: center; justify-content: center; gap: 10px; position: relative; z-index: 1; }
-.pass-foot img { height: 58px; filter: brightness(0) invert(1); }
-.pass-foot .org { font-weight: 700; font-size: 22px; letter-spacing: 1px; }
 
 .meta-row { display: flex; justify-content: space-between; gap: 8px; margin: 18px 4px 0; color: var(--muted); font-size: 13px; }
 .meta-row b { color: var(--ink); }
@@ -230,3 +229,44 @@ dialog::backdrop { background: rgba(15, 23, 42, .45); }
 .mono { font-family: ui-monospace, Consolas, monospace; background: #f1f5f9; padding: 8px 10px; border-radius: 8px; user-select: all; word-break: break-all; }
 .spin { width: 28px; height: 28px; border: 3px solid #cbd5e1; border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; margin: 60px auto; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- selection (members export) ---------- */
+.mrow .pick { width: 20px; height: 20px; flex: none; pointer-events: none; }
+.mrow.sel { box-shadow: 0 0 0 2px var(--blue-3); background: #eef2ff; }
+
+/* ---------- admin section ---------- */
+.ulist { display: grid; gap: 8px; }
+.urow { display: flex; align-items: center; gap: 8px; border: 1.5px solid var(--line); border-radius: 14px; padding: 8px 8px 8px 12px; }
+.urow .info { flex: 1; min-width: 0; }
+.urow .n1 { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.urow .n1 small { color: var(--muted); font-weight: 400; }
+.urow .n2 { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.urow select { width: auto; padding: 6px 8px; font-size: 14px; border-radius: 10px; }
+.urow .icon-btn { width: 36px; height: 36px; color: var(--muted); }
+.urow .icon-btn svg { width: 20px; height: 20px; }
+
+/* ---------- events ---------- */
+.elist { display: grid; gap: 10px; }
+.ecard { display: flex; gap: 12px; align-items: flex-start; background: #fff; border-radius: 16px; padding: 12px; text-decoration: none; color: inherit; box-shadow: 0 1px 2px rgba(15,23,42,.06); }
+.ecard.past { opacity: .6; }
+.ecard .info { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.ecard .n1 { font-weight: 700; font-size: 16px; line-height: 1.4; }
+.ecard .n2 { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.ecard .n2 svg, .event-detail dt svg { width: 16px; height: 16px; flex: none; color: var(--blue-2); }
+.edate { flex: none; width: 54px; border-radius: 12px; background: linear-gradient(160deg, #1d3fae, #16328f); color: #fff; text-align: center; padding: 6px 0; }
+.edate b { display: block; font-size: 22px; line-height: 1.1; }
+.edate span { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+.bar { height: 6px; border-radius: 99px; background: #e2e8f0; overflow: hidden; margin-top: 4px; }
+.bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--blue-3), var(--blue)); border-radius: 99px; transition: width .4s; }
+.event-detail .kv { grid-template-columns: 20px 1fr; align-items: start; margin-bottom: 8px; }
+.event-detail dt { padding-top: 2px; }
+.live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-right: 6px; animation: pulse 1.6s infinite; }
+.plist { display: grid; gap: 6px; }
+.prow { display: flex; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.prow:last-child { border-bottom: 0; }
+.prow .pn { width: 26px; height: 26px; border-radius: 50%; background: #e8ecf7; color: var(--blue); display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
+.prow .n1 { font-weight: 600; font-size: 14px; }
+.prow .n2 { font-size: 12px; color: var(--muted); }
+
+/* six tabs must fit on a phone */
+#tabbar a { padding: 6px 2px; font-size: 10.5px; }
