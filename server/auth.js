@@ -17,7 +17,8 @@ const COOKIE = 'aisarc_session';
 const MAX_AGE = 14 * 24 * 3600;
 // Secure cookies by default whenever the site is served over https.
 export const SECURE = process.env.COOKIE_SECURE === 'true'
-  || (process.env.COOKIE_SECURE !== 'false' && /^https:/i.test(process.env.PUBLIC_URL || ''));
+  || (process.env.COOKIE_SECURE !== 'false'
+    && [process.env.PUBLIC_URL, process.env.GOOGLE_REDIRECT_URI].some((u) => /^https:/i.test(u || '')));
 
 // ---------- password hashing (scrypt, parameters stored with the hash) ----------
 const N = 2 ** 15, R = 8, P = 1, KEYLEN = 64;
