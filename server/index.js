@@ -19,6 +19,9 @@ import { importWorkbook } from './importer.js';
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT || 3000);
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/+$/, '');
+// Redirect mode is used when a redirect URI is known; otherwise the Google popup is used.
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || (PUBLIC_URL ? `${PUBLIC_URL}/auth/google/callback` : '');
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').toLowerCase().split(',').map((s) => s.trim()).filter(Boolean);
 
 // Bootstrap admin account from env (password is only set when the account is first created).
@@ -129,7 +132,7 @@ function createApplicant({ name_kh = '', name_en = '', email, phone = '' }, pass
 
 // ---------- public ----------
 app.get('/healthz', (req, res) => res.json({ ok: true }));
-app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID }));
+app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, googleRedirectUri: GOOGLE_REDIRECT_URI }));
 
 app.post('/api/login', (req, res) => {
   const username = String(req.body?.username || '').trim();
@@ -164,31 +167,51 @@ app.post('/api/register', (req, res) => {
   res.json({ user: userPayload(u) });
 });
 
+// Resolves a verified Google identity to a user (admin, existing member, or new applicant).
+function googleUser(g) {
+  const email = g.email.toLowerCase();
+  if (ADMIN_EMAILS.includes(email)) {
+    const u = db.prepare("SELECT * FROM users WHERE username = ? AND role = 'admin'").get(email);
+    if (u) return u;
+    const id = db.prepare("INSERT INTO users (username, role) VALUES (?, 'admin')").run(email).lastInsertRowid;
+    return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  }
+  const m = db.prepare('SELECT id FROM members WHERE lower(email) = lower(?)').get(email);
+  if (m) {
+    syncUsername(m.id, email);
+    return db.prepare('SELECT * FROM users WHERE member_id = ?').get(m.id);
+  }
+  // Unknown Google account: register as a new applicant waiting for review.
+  if (db.prepare('SELECT id FROM users WHERE username = ?').get(email)) throw new Error('Account exists, sign in with password');
+  return createApplicant({ name_en: g.name, email }, null);
+}
+
+// Popup mode (no PUBLIC_URL): the browser posts the Google credential as JSON.
 app.post('/api/login/google', async (req, res) => {
   if (!GOOGLE_CLIENT_ID) return res.status(400).json({ error: 'Google sign-in is not configured' });
   const g = await verifyGoogleToken(String(req.body?.credential || ''), GOOGLE_CLIENT_ID).catch(() => null);
   if (!g) return res.status(401).json({ error: 'Google sign-in failed' });
-  const email = g.email.toLowerCase();
-  let u;
-  if (ADMIN_EMAILS.includes(email)) {
-    u = db.prepare("SELECT * FROM users WHERE username = ? AND role = 'admin'").get(email);
-    if (!u) {
-      const id = db.prepare("INSERT INTO users (username, role) VALUES (?, 'admin')").run(email).lastInsertRowid;
-      u = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-    }
-  } else {
-    const m = db.prepare('SELECT id FROM members WHERE lower(email) = lower(?)').get(email);
-    if (m) {
-      syncUsername(m.id, email);
-      u = db.prepare('SELECT * FROM users WHERE member_id = ?').get(m.id);
-    } else {
-      // Unknown Google account: register as a new applicant waiting for review.
-      if (db.prepare('SELECT id FROM users WHERE username = ?').get(email)) return res.status(409).json({ error: 'Account exists, sign in with password' });
-      u = createApplicant({ name_en: g.name, email }, null);
-    }
-  }
-  setSession(res, u);
-  res.json({ user: userPayload(u) });
+  try {
+    const u = googleUser(g);
+    setSession(res, u);
+    res.json({ user: userPayload(u) });
+  } catch (e) { res.status(409).json({ error: e.message }); }
+});
+
+// Redirect mode: Google posts the credential to GOOGLE_REDIRECT_URI (must be listed in
+// "Authorized redirect URIs"). Works inside in-app browsers where popups are blocked.
+app.post('/auth/google/callback', express.urlencoded({ extended: false }), async (req, res) => {
+  const fail = (msg) => res.redirect(303, `/#/login?error=${encodeURIComponent(msg)}`);
+  if (!GOOGLE_CLIENT_ID) return fail('Google sign-in is not configured');
+  // Double-submit CSRF check required by Google Identity Services.
+  const cookieToken = /(?:^|;\s*)g_csrf_token=([^;]+)/.exec(req.headers.cookie || '')?.[1];
+  if (!cookieToken || cookieToken !== req.body?.g_csrf_token) return fail('Google sign-in failed (CSRF check)');
+  const g = await verifyGoogleToken(String(req.body?.credential || ''), GOOGLE_CLIENT_ID).catch(() => null);
+  if (!g) return fail('Google sign-in failed');
+  try {
+    setSession(res, googleUser(g));
+    res.redirect(303, '/#/');
+  } catch (e) { fail(e.message); }
 });
 
 app.post('/api/logout', (req, res) => { clearSession(res); res.json({ ok: true }); });

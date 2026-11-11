@@ -48,18 +48,31 @@ The `updater` service checks the git remote every `POLL_INTERVAL` seconds (defau
 `git push` to `GIT_BRANCH` (default `main`), it pulls, rebuilds and restarts the `app` container.
 Member data lives in the `aisarc-data` Docker volume and survives updates.
 
-- **Private repo over HTTPS**: clone with a read-only token, e.g. `https://<token>@github.com/org/aisarc.git`.
+- **Private repo over HTTPS**: set `GIT_USERNAME` and `GIT_TOKEN` (read-only token: GitHub fine-grained token with
+  *Contents: Read-only*, or a GitLab deploy token) and optionally `GIT_REPO_URL` in `.env`. The token is passed to git
+  through a credential helper and is never stored in the repository config or shown in logs.
 - **Private repo over SSH**: put a read-only deploy key (`id_ed25519`, mode 600) and `known_hosts` in a folder and set `SSH_KEY_DIR` in `.env`.
 - Logs: `docker compose logs -f updater`
 
 ### HTTPS + Google Sign-In
 
-1. Point your domain at the server, set `DOMAIN=members.example.org` and `COOKIE_SECURE=true` in `.env`.
+1. Point your domain at the server, set `DOMAIN=members.example.org`, `PUBLIC_URL=https://members.example.org`
+   and `COOKIE_SECURE=true` in `.env`.
 2. `docker compose --profile https up -d` (Caddy gets a Let's Encrypt certificate automatically).
-3. In Google Cloud Console → APIs & Services → Credentials, create an **OAuth client ID (Web)**, add
-   `https://members.example.org` to *Authorized JavaScript origins*, and set `GOOGLE_CLIENT_ID` in `.env`.
+3. In Google Cloud Console → APIs & Services → Credentials, create an **OAuth client ID (Web application)**:
+   - *Authorized JavaScript origins*: `https://members.example.org`
+   - *Authorized redirect URIs*: `https://members.example.org/auth/google/callback`
+
+   Then set `GOOGLE_CLIENT_ID` (and optionally `GOOGLE_REDIRECT_URI`, which defaults to `${PUBLIC_URL}/auth/google/callback`).
+   With a redirect URI the sign-in uses a full-page redirect, which also works in in-app browsers (Telegram, Facebook)
+   where popups are blocked. Without `PUBLIC_URL`/`GOOGLE_REDIRECT_URI` the Google popup is used.
 4. Members sign in with the Google account whose email matches their member record; unknown Google accounts are
    registered as new applicants (status REVIEW). Add admin Google accounts to `ADMIN_EMAILS`.
+
+### Troubleshooting
+
+- `Cannot read package config /app/package.json: permission denied` – fixed in the Dockerfile (app files are copied
+  with `--chown=node:node`). Pull the latest code and run `docker compose up -d --build`.
 
 ## Accounts
 

@@ -639,6 +639,8 @@ function viewLogin() {
     } catch (err) { $('#lerr').textContent = err.message; }
   });
   initGoogle();
+  const err = new URLSearchParams(location.hash.split('?')[1] || '').get('error');
+  if (err) $('#lerr').textContent = err;
 }
 
 function viewRegister() {
@@ -680,8 +682,10 @@ function initGoogle() {
   const cid = state.config?.googleClientId;
   if (!cid) return;
   const render = () => {
+    const redirect = state.config.googleRedirectUri;
     google.accounts.id.initialize({
       client_id: cid,
+      ...(redirect ? { ux_mode: 'redirect', login_uri: redirect } : {}),
       callback: async ({ credential }) => {
         try {
           const r = await api('/api/login/google', { body: { credential } });
