@@ -210,7 +210,7 @@ function bindSubmit(root) {
 
 function viewPass() {
   const m = state.member;
-  const today = new Date().toLocaleDateString('en-GB', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' });
+  const today = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   app.className = '';
   app.innerHTML = `${header('Your Pass', esc(today))}
     ${passCard(m)}
