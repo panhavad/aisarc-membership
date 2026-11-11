@@ -52,25 +52,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .pass-label { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; opacity: .75; }
 .pass-val { font-size: 15px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; }
 .pass-status { text-align: right; }
-.pass.off { /* any status other than ACTIVE: grey card */
-  background: linear-gradient(160deg, #8a929e 0%, #6b7280 50%, #4b5563 100%);
-  box-shadow: 0 18px 40px -18px rgba(55, 65, 81, .7);
-}
-.pass.off .pass-photo img { filter: grayscale(1); }
 .pass-pill { display: inline-block; margin-top: 3px; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; letter-spacing: .6px; color: #fff; }
-.pass.on::before { /* moving shine: shows the pass is live, not a screenshot */
-  content: ''; position: absolute; top: -50%; bottom: -50%; left: -60%; width: 45%; z-index: 2; pointer-events: none;
-  background: linear-gradient(100deg, transparent 0%, rgba(255,255,255,.04) 30%, rgba(255,255,255,.28) 50%, rgba(255,255,255,.04) 70%, transparent 100%);
-  transform: rotate(18deg); animation: shine 3.2s ease-in-out infinite;
+.pass.on::before { /* diagonal light sweeping across the card: shows the pass is live, not a screenshot */
+  content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,.12) 38%, rgba(255,255,255,.55) 50%, rgba(255,255,255,.12) 62%, transparent 75%);
+  transform: translateX(-100%); animation: shine 3s ease-in-out infinite;
 }
-@keyframes shine { 0% { left: -60%; } 60%, 100% { left: 130%; } }
+@keyframes shine { 0% { transform: translateX(-100%); } 55%, 100% { transform: translateX(100%); } }
 .pass-clock {
   position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
   font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 600; letter-spacing: .5px; margin-bottom: 8px;
 }
 .pass-clock i { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; animation: pulse 1.6s infinite; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(74,222,128,.7); } 70% { box-shadow: 0 0 0 8px rgba(74,222,128,0); } 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); } }
-@media (prefers-reduced-motion: reduce) { .pass.on::before, .pass-clock i { animation: none; } }
 .pass-body { flex: 1; display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 .pass-info { flex: 1; min-width: 0; display: grid; gap: 14px; }
 .pass-info .en { font-size: 12px; opacity: .85; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; }

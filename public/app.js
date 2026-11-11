@@ -152,7 +152,7 @@ function passCard(m) {
   const s = statusOf(m);
   const active = s.key === 'ACTIVE';
   return `
-  <section class="pass ${active ? 'on' : 'off'}" aria-label="Membership pass">
+  <section class="pass${active ? ' on' : ''}" aria-label="Membership pass">
     <div class="pass-head">
       <img class="pass-logo" src="${IMG('logo.png')}" alt="AISARC logo">
       <div class="pass-status"><div class="pass-label">Status</div><span class="pass-pill s-${s.color}">${esc(s.key)}</span></div>
