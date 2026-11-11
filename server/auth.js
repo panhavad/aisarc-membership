@@ -79,6 +79,13 @@ export const requireAdmin = (req, res, next) => {
   next();
 };
 
+export const requireStaff = (req, res, next) => {
+  req.user = sessionUser(req);
+  if (!req.user) return res.status(401).json({ error: 'Not signed in' });
+  if (!['admin', 'moderator'].includes(req.user.role)) return res.status(403).json({ error: 'Moderator or admin only' });
+  next();
+};
+
 // Simple in-memory brute-force protection: 10 failed attempts per IP+username / 15 min.
 const attempts = new Map();
 export function loginLimited(key) {
@@ -98,7 +105,7 @@ export async function verifyGoogleToken(credential, clientId) {
   const t = await r.json();
   const issOk = t.iss === 'accounts.google.com' || t.iss === 'https://accounts.google.com';
   if (t.aud !== clientId || !issOk || t.email_verified !== 'true' || Number(t.exp) < Date.now() / 1000) return null;
-  return t.email;
+  return { email: t.email, name: t.name || '' };
 }
 
 export function randomPassword() {

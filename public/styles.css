@@ -44,7 +44,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .pass::after { /* subtle watermark */
   content: ''; position: absolute; right: -30%; bottom: -12%; width: 85%; aspect-ratio: 1;
-  background: url(/img/logo.png) center/contain no-repeat; opacity: .06; filter: grayscale(1) brightness(3);
+  background: url(/img/logo.png?v=2) center/contain no-repeat; opacity: .06; filter: grayscale(1) brightness(3);
   pointer-events: none;
 }
 .pass-head { display: flex; justify-content: space-between; align-items: flex-start; }
@@ -52,13 +52,31 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .pass-label { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; opacity: .75; }
 .pass-val { font-size: 15px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; }
 .pass-status { text-align: right; }
-.pass-status .pass-val.INACTIVE { color: #fca5a5; }
-.pass-status .pass-val.PENDING { color: #fde68a; }
+.pass.off { /* any status other than ACTIVE: grey card */
+  background: linear-gradient(160deg, #8a929e 0%, #6b7280 50%, #4b5563 100%);
+  box-shadow: 0 18px 40px -18px rgba(55, 65, 81, .7);
+}
+.pass.off .pass-photo img { filter: grayscale(1); }
+.pass-pill { display: inline-block; margin-top: 3px; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; letter-spacing: .6px; color: #fff; }
+.pass.on::before { /* moving shine: shows the pass is live, not a screenshot */
+  content: ''; position: absolute; top: -50%; bottom: -50%; left: -60%; width: 45%; z-index: 2; pointer-events: none;
+  background: linear-gradient(100deg, transparent 0%, rgba(255,255,255,.04) 30%, rgba(255,255,255,.28) 50%, rgba(255,255,255,.04) 70%, transparent 100%);
+  transform: rotate(18deg); animation: shine 3.2s ease-in-out infinite;
+}
+@keyframes shine { 0% { left: -60%; } 60%, 100% { left: 130%; } }
+.pass-clock {
+  position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 600; letter-spacing: .5px; margin-bottom: 8px;
+}
+.pass-clock i { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; animation: pulse 1.6s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(74,222,128,.7); } 70% { box-shadow: 0 0 0 8px rgba(74,222,128,0); } 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); } }
+@media (prefers-reduced-motion: reduce) { .pass.on::before, .pass-clock i { animation: none; } }
 .pass-body { flex: 1; display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 .pass-info { flex: 1; min-width: 0; display: grid; gap: 14px; }
-.pass-info .kh { font-size: 13px; opacity: .85; font-weight: 500; }
-.pass-photo {
-  width: 42%; aspect-ratio: 1; border-radius: 50%; flex: none; overflow: hidden;
+.pass-info .en { font-size: 12px; opacity: .85; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; }
+.pass-info .pass-val.kh { font-size: 17px; text-transform: none; letter-spacing: 0; line-height: 1.35; }
+.pass-photo { /* same proportions and corner shape as the card */
+  width: 40%; aspect-ratio: 0.72; border-radius: 14px; flex: none; overflow: hidden;
   background: rgba(255, 255, 255, .15); display: grid; place-items: center; font-size: 34px; font-weight: 700;
   box-shadow: 0 0 0 4px rgba(255, 255, 255, .12);
 }
@@ -143,8 +161,47 @@ input:disabled, select:disabled, textarea:disabled { background: #f1f5f9; color:
 .mrow .n1 { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mrow .n2 { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chip { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 99px; background: #dcfce7; color: var(--ok); flex: none; }
-.chip.INACTIVE { background: #fee2e2; color: var(--danger); }
-.chip.PENDING { background: #fef3c7; color: #b45309; }
+.s-green { background: #16a34a; } .s-orange { background: #ea580c; } .s-grey { background: #374151; } .s-red { background: #dc2626; }
+.chip.c-green { background: #dcfce7; color: #15803d; } .chip.c-orange { background: #ffedd5; color: #c2410c; }
+.chip.c-grey { background: #e5e7eb; color: #4b5563; } .chip.c-red { background: #fee2e2; color: #b91c1c; }
+.filters { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 10px; scrollbar-width: none; }
+.filters button { flex: none; border: 1.5px solid var(--line); background: #fff; border-radius: 99px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted); }
+.filters button.on { border-color: var(--blue); color: var(--blue); background: #e8ecf7; }
+.filters b { margin-left: 4px; }
+
+/* notices on the pass / member page */
+.notice { border-radius: 16px; padding: 14px 16px; margin: 16px 0; font-size: 14px; line-height: 1.5; border: 1.5px solid; }
+.notice h3 { margin: 0 0 4px; font-size: 15px; }
+.notice p { margin: 4px 0; }
+.notice .actions { margin-top: 10px; }
+.notice.orange { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+.notice.grey { background: #f3f4f6; border-color: #d1d5db; color: #374151; }
+.notice.red { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+.notice.green { background: #f0fdf4; border-color: #86efac; color: #166534; }
+
+/* number input with a fixed unit */
+.unit { display: flex; align-items: stretch; }
+.unit input { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.unit span { display: grid; place-items: center; padding: 0 14px; border: 1.5px solid var(--line); border-left: 0; border-radius: 0 12px 12px 0; background: #f1f5f9; color: var(--muted); font-weight: 600; }
+
+/* destructive actions are tucked away to avoid accidental taps */
+details.danger { margin-top: 20px; border: 1.5px dashed #fca5a5; border-radius: 14px; padding: 4px 14px; background: #fff; }
+details.danger summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 8px 0; }
+details.danger[open] { padding-bottom: 14px; }
+details.danger p { font-size: 13px; color: #991b1b; margin: 4px 0 10px; }
+
+.radio-list { display: grid; gap: 8px; margin-bottom: 12px; }
+.radio-list label { display: flex; gap: 10px; align-items: flex-start; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; font-size: 14px; }
+.radio-list input { width: auto; margin-top: 4px; }
+.radio-list label:has(input:checked) { border-color: var(--blue-3); background: #eef2ff; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: #334155; margin-bottom: 14px; line-height: 1.5; }
+.check input { width: 20px; height: 20px; flex: none; margin-top: 2px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 14px; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-weight: 600; word-break: break-word; }
+.qr { display: block; max-width: 240px; width: 100%; margin: 12px auto 0; border-radius: 12px; }
+.pre { white-space: pre-wrap; }
+.mono-big { font-family: ui-monospace, Consolas, monospace; font-size: 18px; letter-spacing: 1px; }
 .empty { text-align: center; color: var(--muted); padding: 40px 0; }
 
 .admin-edit { display: grid; gap: 16px; }

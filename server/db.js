@@ -27,19 +27,83 @@ db.exec(`
     member_id INTEGER REFERENCES members(id) ON DELETE CASCADE,
     must_change INTEGER NOT NULL DEFAULT 0
   );
+  CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 `);
 
 const now = () => new Date().toISOString();
 
-export function rowToMember(r) {
+// ---------- association settings ----------
+const ASSOC_DEFAULTS = {
+  name_kh: 'សមាគម គិលានុបដ្ឋាកឯកទេសដាក់ថ្នាំសណ្តំ និង ប្រពោធនកម្មកម្ពុជា',
+  name_en: 'AISARC',
+  fee: '',
+  term_months: '12',
+  bank_name: 'ABA Bank',
+  account_name: 'Leangsim MENG',
+  account_no: '500 076 613',
+  currency: 'USD',
+};
+
+export function getAssociation() {
+  const r = db.prepare("SELECT value FROM settings WHERE key = 'association'").get();
+  return { ...ASSOC_DEFAULTS, ...(r ? JSON.parse(r.value) : {}) };
+}
+
+export function saveAssociation(patch) {
+  const v = { ...getAssociation(), ...patch };
+  db.prepare("INSERT INTO settings (key, value) VALUES ('association', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(JSON.stringify(v));
+  return v;
+}
+
+export function termMonths() {
+  const n = parseInt(getAssociation().term_months, 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+export function addMonths(iso, months) {
+  const d = new Date(iso);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString();
+}
+
+// Normalise free-text numbers like "១២ឆ្នាំ" or "13 years" -> "12" / "13".
+export function toNumberText(v) {
+  const s = String(v ?? '').replace(/[០-៩]/g, (c) => String(c.charCodeAt(0) - 0x17e0));
+  const m = s.match(/\d+(?:\.\d+)?/);
+  return m ? m[0] : '';
+}
+
+// One-off data migrations: "experience" became a number; per-member "payment" moved to Association Info.
+for (const r of db.prepare('SELECT id, data FROM members').all()) {
+  const d = JSON.parse(r.data);
+  let changed = false;
+  if (d.experience && !/^\d+(\.\d+)?$/.test(d.experience)) { d.experience = toNumberText(d.experience); changed = true; }
+  if ('payment' in d) { delete d.payment; changed = true; }
+  if (changed) db.prepare('UPDATE members SET data = ? WHERE id = ?').run(JSON.stringify(d), r.id);
+}
+
+// Expiry date: explicit expires_at, otherwise joined_at + membership term (if a term is configured).
+export function expiryOf(m, term = termMonths()) {
+  if (m.expires_at) return m.expires_at;
+  if (!term || !m.joined_at) return null;
+  return addMonths(m.joined_at, term);
+}
+
+export function rowToMember(r, term) {
   if (!r) return null;
   const data = JSON.parse(r.data || '{}');
-  return { id: r.id, ...data, member_no: r.member_no, email: r.email, joined_at: r.joined_at, username: r.username ?? undefined };
+  const m = { id: r.id, ...data, member_no: r.member_no, email: r.email, joined_at: r.joined_at, username: r.username ?? undefined, role: r.role ?? undefined };
+  m.expires_at = expiryOf(m, term);
+  m.status = m.status || 'ACTIVE';
+  // An active membership past its expiry date becomes PENDING until renewed.
+  if (m.status === 'ACTIVE' && m.expires_at && new Date(m.expires_at) < new Date()) m.status = 'PENDING';
+  return m;
 }
 
 export function getMember(id) {
   return rowToMember(db.prepare(
-    'SELECT m.*, u.username FROM members m LEFT JOIN users u ON u.member_id = m.id WHERE m.id = ?').get(id));
+    'SELECT m.*, u.username, u.role FROM members m LEFT JOIN users u ON u.member_id = m.id WHERE m.id = ?').get(id));
 }
 
 export function findMemberByEmail(email) {
@@ -48,9 +112,10 @@ export function findMemberByEmail(email) {
 
 export function listMembers(q = '') {
   const term = `%${String(q).trim().toLowerCase()}%`;
-  return db.prepare(`SELECT m.*, u.username FROM members m LEFT JOIN users u ON u.member_id = m.id
+  const months = termMonths();
+  return db.prepare(`SELECT m.*, u.username, u.role FROM members m LEFT JOIN users u ON u.member_id = m.id
     WHERE ? = '%%' OR lower(m.data) LIKE ? OR lower(ifnull(m.email,'')) LIKE ? OR lower(ifnull(m.member_no,'')) LIKE ?
-    ORDER BY m.joined_at DESC, m.id DESC`).all(term, term, term, term).map(rowToMember);
+    ORDER BY m.joined_at IS NULL DESC, m.joined_at DESC, m.id DESC`).all(term, term, term, term).map((r) => rowToMember(r, months));
 }
 
 export function nextMemberNo() {
@@ -61,6 +126,7 @@ export function nextMemberNo() {
 
 const COLUMNS = ['member_no', 'email', 'joined_at'];
 
+// New applicants (status REVIEW) get no membership no. / join date until they are approved.
 export function saveMember(id, fields) {
   const cur = id ? db.prepare('SELECT * FROM members WHERE id = ?').get(id) : null;
   if (id && !cur) return null;
@@ -70,9 +136,11 @@ export function saveMember(id, fields) {
     if (COLUMNS.includes(k)) cols[k] = v === '' ? null : v;
     else data[k] = v;
   }
-  if (!cols.member_no) cols.member_no = nextMemberNo();
-  if (!cols.joined_at) cols.joined_at = now();
   if (!data.status) data.status = 'ACTIVE';
+  if (data.status !== 'REVIEW' && data.status !== 'REJECTED') {
+    if (!cols.member_no) cols.member_no = nextMemberNo();
+    if (!cols.joined_at) cols.joined_at = now();
+  }
   if (cur) {
     db.prepare('UPDATE members SET member_no=?, email=?, joined_at=?, data=?, updated_at=? WHERE id=?')
       .run(cols.member_no, cols.email ?? null, cols.joined_at, JSON.stringify(data), now(), id);

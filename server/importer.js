@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import { FIELDS } from '../public/fields.js';
-import { db, findMemberByEmail, saveMember } from './db.js';
+import { db, findMemberByEmail, saveMember, toNumberText } from './db.js';
 import { hashPassword } from './auth.js';
 
 const clean = (v) => String(v ?? '').replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
@@ -19,6 +19,7 @@ const normalizers = {
   nationality: (v) => (/^(khmer|ខ្ឦែរ)$/i.test(v) ? 'ខ្មែរ' : v),
   name_en: (v) => v.toUpperCase(),
   email: (v) => v.toLowerCase(),
+  experience: toNumberText,
 };
 
 export function importWorkbook(buffer, { overwrite = false } = {}) {

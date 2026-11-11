@@ -2,9 +2,24 @@
 
 Mobile-first membership management web app for **ស.គ.ឯ.ស.ប.ក – AISARC**.
 
-- **Members** sign in with username/password or Google, see their digital membership pass, and edit their own information.
-- **Admins** search, view, add, edit, delete members, reset passwords, import the Google Form XLSX and export CSV.
-- The **"Member since" timestamp**, membership no., status, login email, payment and consent fields are admin-only.
+- **Members** sign in with username/password or Google, see their live digital membership pass, and edit their own information.
+- **New members** self-register (or sign in with Google); their application waits for a moderator.
+- **Moderators** review applications and renewals: approve, or reject with a reason the member can act on.
+- **Admins** do everything: search, add, edit, activate/deactivate, delete (hidden in a "Danger zone"), assign roles,
+  reset passwords, edit Association Info (bank account, fee, QR), import the Google Form XLSX and export CSV.
+- "Member since" and membership no. are set by the system/admin and cannot be changed by members.
+
+### Membership status
+
+| Status | Colour | Meaning |
+| --- | --- | --- |
+| REVIEW | orange | Waiting for a moderator to approve or reject |
+| PENDING | grey | Membership expired (validity set in Association Info); member must pay and request renewal |
+| ACTIVE | green | Active, no action needed – blue pass with shine animation and live clock (not a screenshot) |
+| REJECTED | red | Rejected by a moderator because information is missing or wrong (reason shown to the member) |
+| INACTIVE | red | Member does not agree to the declaration (consent), or was deactivated by an admin |
+
+Any status other than ACTIVE shows a grey pass.
 
 Tech: Node.js 24 + Express, built-in `node:sqlite` (no native deps), vanilla JS front end (no build step, ~45 KB of app code), on `node:24-alpine`.
 
@@ -43,7 +58,8 @@ Member data lives in the `aisarc-data` Docker volume and survives updates.
 2. `docker compose --profile https up -d` (Caddy gets a Let's Encrypt certificate automatically).
 3. In Google Cloud Console → APIs & Services → Credentials, create an **OAuth client ID (Web)**, add
    `https://members.example.org` to *Authorized JavaScript origins*, and set `GOOGLE_CLIENT_ID` in `.env`.
-4. Members sign in with the Google account whose email matches their member record. Add admin Google accounts to `ADMIN_EMAILS`.
+4. Members sign in with the Google account whose email matches their member record; unknown Google accounts are
+   registered as new applicants (status REVIEW). Add admin Google accounts to `ADMIN_EMAILS`.
 
 ## Accounts
 
@@ -51,8 +67,10 @@ Member data lives in the `aisarc-data` Docker volume and survives updates.
 | --- | --- | --- |
 | Admin | `ADMIN_USERNAME` | `ADMIN_PASSWORD` (from `.env`, created on first start) |
 | Imported member | their email | their phone number (digits only) – must be changed at first login |
+| Self-registered member | their email | chosen at registration |
 
-Admins can generate a new temporary password for any member from the member's page.
+Admins can generate a new temporary password for any member, and make a member a **moderator** or **admin**
+from the member's page (Account → Role). Google accounts listed in `ADMIN_EMAILS` are admins.
 
 ## Data
 

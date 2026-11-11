@@ -1,9 +1,12 @@
-import { FIELDS, SECTIONS, canEdit } from '/fields.js';
+import {
+  FIELDS, SECTIONS, STATUSES, STATUS_MAP, ROLES, REJECT_REASONS, ASSOC_FIELDS, DECLARATION, CONSENT_YES, canEdit,
+} from '/fields.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const app = $('#app');
 const tabbar = $('#tabbar');
-const state = { user: null, member: null, config: null };
+const state = { user: null, member: null, config: null, checked: false };
+const IMG = (n) => `/img/${n}?v=2`; // bump to bust cached images
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -12,6 +15,7 @@ const ICON = {
   pass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.6-1.4 1.7-2 3-2s2.4.6 3 2M14 10h4M14 13h3"/></svg>',
   user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
   users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.5-5 6.5-5s5.5 1.5 6.5 5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 15c2 .6 3 2.2 3.5 5"/></svg>',
+  org: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V10M19 21V10M9 21v-6h6v6M2 10l10-6 10 6"/></svg>',
   key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/></svg>',
   search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 5l-7 7 7 7"/></svg>',
@@ -50,6 +54,15 @@ const fmtDateTime = (iso) => (iso ? new Date(iso).toLocaleString('en-GB', { time
 const toLocalInput = (iso) => (iso ? new Date(new Date(iso).getTime() + 7 * 3600e3).toISOString().slice(0, 16) : '');
 const fromLocalInput = (v) => (v ? new Date(`${v}:00+07:00`).toISOString() : '');
 
+// Live clock on active passes (proves the pass is not a screenshot).
+function tickClocks() {
+  const now = new Date();
+  const d = now.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+  const t = now.toLocaleTimeString('en-GB', { hour12: false });
+  document.querySelectorAll('[data-clock]').forEach((el) => (el.textContent = `${d} · ${t}`));
+}
+setInterval(tickClocks, 1000);
+
 function fileUrl(v) {
   if (!v) return '';
   if (v.startsWith('file:')) return `/api/files/${encodeURIComponent(v.slice(5))}`;
@@ -61,13 +74,16 @@ const fileLink = (v) => (v?.startsWith('file:') ? fileUrl(v) : v);
 
 const initials = (m) => (m?.name_en || m?.name_kh || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
-function photoHtml(m, cls = '') {
+function photoHtml(m) {
   const url = fileUrl(m?.photo);
   const ini = esc(initials(m));
   return url
-    ? `<img class="${cls}" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-i="${ini}" onerror="this.parentNode.textContent=this.dataset.i">`
+    ? `<img src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-i="${ini}" onerror="this.parentNode.textContent=this.dataset.i">`
     : ini;
 }
+
+const statusOf = (m) => STATUS_MAP[m?.status] || STATUS_MAP.ACTIVE;
+const chip = (m) => { const s = statusOf(m); return `<span class="chip c-${s.color}">${esc(s.key)}</span>`; };
 
 // Resize images client side to keep uploads small and fast on mobile networks.
 function readFile(file, maxPx = 900) {
@@ -92,12 +108,16 @@ function readFile(file, maxPx = 900) {
   });
 }
 
+const isStaff = () => ['admin', 'moderator'].includes(state.user?.role);
+const isAdmin = () => state.user?.role === 'admin';
+
 function setTabs(active) {
   const u = state.user;
   if (!u) { tabbar.hidden = true; return; }
   const tabs = [];
   if (u.member_id) tabs.push(['/pass', 'Pass', ICON.pass], ['/profile', 'Profile', ICON.user]);
-  if (u.role === 'admin') tabs.push(['/admin', 'Members', ICON.users]);
+  tabs.push(['/association', 'Association', ICON.org]);
+  if (isStaff()) tabs.push(['/admin', isAdmin() ? 'Members' : 'Review', ICON.users]);
   tabs.push(['/password', 'Password', ICON.key]);
   tabbar.innerHTML = tabs.map(([href, label, icon]) =>
     `<a href="#${href}" class="${active === href ? 'on' : ''}">${icon}<span>${label}</span></a>`).join('');
@@ -118,26 +138,74 @@ document.addEventListener('click', async (e) => {
   go('/login');
 });
 
+function modal(html) {
+  const d = document.createElement('dialog');
+  d.innerHTML = html;
+  document.body.append(d);
+  d.addEventListener('close', () => d.remove());
+  d.showModal();
+  return d;
+}
+
 // ---------- pass card ----------
 function passCard(m) {
-  const status = m.status || 'ACTIVE';
+  const s = statusOf(m);
+  const active = s.key === 'ACTIVE';
   return `
-  <section class="pass" aria-label="Membership pass">
+  <section class="pass ${active ? 'on' : 'off'}" aria-label="Membership pass">
     <div class="pass-head">
-      <img class="pass-logo" src="/img/logo.png" alt="AISARC logo">
-      <div class="pass-status"><div class="pass-label">Status</div><div class="pass-val ${esc(status)}">${esc(status)}</div></div>
+      <img class="pass-logo" src="${IMG('logo.png')}" alt="AISARC logo">
+      <div class="pass-status"><div class="pass-label">Status</div><span class="pass-pill s-${s.color}">${esc(s.key)}</span></div>
     </div>
     <div class="pass-body">
       <div class="pass-info">
-        <div><div class="pass-label">Name</div><div class="pass-val">${esc(m.name_en || '—')}</div><div class="kh">${esc(m.name_kh || '')}</div></div>
+        <div><div class="pass-label">Name</div><div class="pass-val kh">${esc(m.name_kh || '—')}</div><div class="en">${esc(m.name_en || '')}</div></div>
         <div><div class="pass-label">Birthday</div><div class="pass-val">${esc(m.dob || '—')}</div></div>
         <div><div class="pass-label">Membership No.</div><div class="pass-val">${esc(m.member_no || '—')}</div></div>
         <div><div class="pass-label">Member since</div><div class="pass-val">${esc(fmtDate(m.joined_at))}</div></div>
       </div>
       <div class="pass-photo">${photoHtml(m)}</div>
     </div>
-    <div class="pass-foot"><img src="/img/name.png" alt="ស.គ.ឯ.ស.ប.ក AISARC"></div>
+    ${active ? '<div class="pass-clock"><i></i><span data-clock></span></div>' : ''}
+    <div class="pass-foot"><img src="${IMG('name.png')}" alt="ស.គ.ឯ.ស.ប.ក AISARC"></div>
   </section>`;
+}
+
+function reviewReason(m) {
+  const r = REJECT_REASONS.find((x) => x.key === m.review?.reason);
+  if (!r) return '';
+  return `<p><b>${esc(r.kh)}</b><br>${esc(r.en)}</p>${m.review.message ? `<p class="pre">“${esc(m.review.message)}”</p>` : ''}`;
+}
+
+// Explains the current status to the member and offers the next action.
+function memberNotice(m) {
+  const s = m.status;
+  if (s === 'REVIEW') return `<div class="notice orange"><h3>កំពុងរង់ចាំការពិនិត្យ · Waiting for review</h3>
+    <p>A moderator will review your information soon. Please make sure your profile is complete and correct.</p>
+    <div class="actions"><a class="btn sm light" href="#/profile">Check my information</a></div></div>`;
+  if (s === 'REJECTED') return `<div class="notice red"><h3>ពាក្យសុំត្រូវបានបដិសេធ · Application rejected</h3>
+    ${reviewReason(m)}<p>Please update your information, then submit again.</p>
+    <div class="actions"><a class="btn sm light" href="#/profile">Edit my information</a><button class="btn sm" data-submit>Submit for review</button></div></div>`;
+  if (s === 'PENDING') return `<div class="notice grey"><h3>សមាជិកភាពផុតកំណត់ · Membership expired</h3>
+    <p>Your membership expired on <b>${esc(fmtDate(m.expires_at))}</b>. Please pay the membership fee (see Association) and request renewal.</p>
+    <div class="actions"><a class="btn sm light" href="#/association">Payment info</a><button class="btn sm" data-submit>Request renewal</button></div></div>`;
+  if (s === 'INACTIVE') return m.consent !== CONSENT_YES
+    ? `<div class="notice red"><h3>អសកម្ម · Inactive</h3><p>You have not agreed to the declaration, so your membership is inactive and your information is not used.
+       To re-activate, agree to the declaration in your profile.</p><div class="actions"><a class="btn sm light" href="#/profile">Go to my profile</a></div></div>`
+    : `<div class="notice red"><h3>អសកម្ម · Inactive</h3><p>Your membership is inactive. You can ask for it to be reviewed again.</p>
+       <div class="actions"><button class="btn sm" data-submit>Submit for review</button></div></div>`;
+  return '';
+}
+
+function bindSubmit(root) {
+  root.querySelectorAll('[data-submit]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      state.member = (await api('/api/me/submit', { body: {} })).member;
+      toast('Submitted for review ✓');
+      route();
+    } catch (e) { toast(e.message, true); b.disabled = false; }
+  }));
 }
 
 function viewPass() {
@@ -146,12 +214,15 @@ function viewPass() {
   app.className = '';
   app.innerHTML = `${header('Your Pass', esc(today))}
     ${passCard(m)}
-    <div class="meta-row"><span>Phone <b>${esc(m.phone || '—')}</b></span><span>T-shirt <b>${esc(m.tshirt || '—')}</b></span></div>
+    <div class="meta-row"><span>Phone <b>${esc(m.phone || '—')}</b></span><span>Valid until <b>${m.expires_at ? esc(fmtDate(m.expires_at)) : '—'}</b></span></div>
+    ${memberNotice(m)}
     <div class="card" style="margin-top:16px">
       <h2>${esc(m.name_kh || m.name_en)}</h2>
-      <div class="sub" style="color:var(--muted);font-size:14px">${esc(m.workplace || '')}${m.department ? ` · ${esc(m.department)}` : ''}</div>
+      <div style="color:var(--muted);font-size:14px">${esc(m.workplace || '')}${m.department ? ` · ${esc(m.department)}` : ''}</div>
       <div class="actions" style="margin-top:14px"><a class="btn block" href="#/profile">${ICON.user} Edit my information</a></div>
     </div>`;
+  tickClocks();
+  bindSubmit(app);
 }
 
 // ---------- member form ----------
@@ -159,7 +230,7 @@ function fieldHtml(f, m, role) {
   const editable = canEdit(f, role);
   const v = m[f.key] ?? '';
   const dis = editable ? '' : 'disabled';
-  const lbl = `<span class="lbl">${esc(f.kh)}${f.required ? ' *' : ''}${editable ? '' : ' <span class="lock">🔒</span>'}<small>${esc(f.en)}</small></span>`;
+  const lbl = `<span class="lbl">${esc(f.kh)}${f.required ? ' *' : ''}${editable || role === 'moderator' ? '' : ' <span class="lock">🔒</span>'}<small>${esc(f.en)}</small></span>`;
   const name = `name="${f.key}" id="f_${f.key}"`;
   let input;
   if (f.type === 'photo' || f.type === 'file') {
@@ -177,13 +248,16 @@ function fieldHtml(f, m, role) {
   } else if (f.type === 'select') {
     const opts = [...f.options];
     if (v && !opts.includes(v)) opts.unshift(v);
-    input = `<select ${name} ${dis}><option value="">—</option>${opts.map((o) => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+    const label = (o) => f.labels?.[o] || (f.key === 'status' && STATUS_MAP[o] ? `${o} · ${STATUS_MAP[o].en}` : o);
+    input = `<select ${name} ${dis}><option value="">—</option>${opts.map((o) => `<option value="${esc(o)}" ${o === v ? 'selected' : ''}>${esc(label(o))}</option>`).join('')}</select>`;
   } else if (f.type === 'textarea') {
     input = `<textarea ${name} ${dis} rows="2">${esc(v)}</textarea>`;
+  } else if (f.type === 'number') {
+    input = `<div class="unit"><input type="number" inputmode="decimal" min="0" step="any" ${name} value="${esc(v)}" ${dis}><span>${esc(f.unit)}</span></div>`;
   } else {
     const type = f.type === 'tel' ? 'tel' : f.type === 'email' ? 'email' : 'text';
     const list = f.list ? `list="dl_${f.key}"` : '';
-    input = `<input type="${type}" ${name} ${list} value="${esc(v)}" ${dis} ${f.placeholder ? `placeholder="${f.placeholder}"` : ''} ${f.required ? 'required' : ''} ${f.upper ? 'style="text-transform:uppercase"' : ''}>`;
+    input = `<input type="${type}" ${name} ${list} value="${esc(v)}" ${dis} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} ${f.required ? 'required' : ''} ${f.upper ? 'style="text-transform:uppercase"' : ''}>`;
     if (f.list) input += `<datalist id="dl_${f.key}">${f.list.map((o) => `<option value="${esc(o)}">`).join('')}</datalist>`;
   }
   return `<label class="field" for="f_${f.key}">${lbl}${input}</label>`;
@@ -197,11 +271,11 @@ function formHtml(m, role) {
   }).join('');
 }
 
-function collect(form, role) {
+function collect(form, role, fields = FIELDS) {
   const out = {};
-  for (const f of FIELDS) {
+  for (const f of fields) {
     const el = form.elements[f.key];
-    if (!el || !canEdit(f, role)) continue;
+    if (!el || (role && !canEdit(f, role))) continue;
     out[f.key] = f.type === 'datetime' ? fromLocalInput(el.value) : el.value.trim();
   }
   return out;
@@ -225,19 +299,27 @@ function viewProfile() {
   const m = state.member;
   app.className = '';
   app.innerHTML = `${header('My Profile', 'ព័ត៌មានផ្ទាល់ខ្លួន · Edit your information')}
+    ${m.status === 'ACTIVE' ? '' : memberNotice(m)}
     <form id="pf" novalidate>${formHtml(m, 'member')}
       <div class="sticky-save"><button class="btn block" type="submit">Save changes · រក្សាទុក</button></div>
     </form>`;
   const form = $('#pf');
+  app.querySelectorAll('.notice a[href="#/profile"]').forEach((a) => a.remove());
+  bindSubmit(app);
   bindUploads(form, null, (mm) => { state.member = mm; viewProfile(); });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = form.querySelector('[type=submit]');
+    const data = collect(form, 'member');
+    if (data.consent && data.consent !== CONSENT_YES && m.consent === CONSENT_YES
+      && !confirm('If you do not agree to the declaration your membership will become INACTIVE. Continue?')) return;
     btn.disabled = true;
     try {
-      const r = await api('/api/me', { method: 'PUT', body: collect(form, 'member') });
+      const before = m.status;
+      const r = await api('/api/me', { method: 'PUT', body: data });
       state.member = r.member;
       toast('Saved ✓');
+      if (r.member.status !== before) viewProfile();
     } catch (err) { toast(err.message, true); }
     btn.disabled = false;
   });
@@ -269,43 +351,134 @@ function viewPassword() {
   });
 }
 
-// ---------- admin ----------
+// ---------- association info ----------
+async function viewAssociation(edit = false) {
+  app.className = '';
+  app.innerHTML = '<div class="spin"></div>';
+  let a;
+  try { a = await api('/api/association'); } catch (e) { return toast(e.message, true); }
+  if (edit && isAdmin()) {
+    app.innerHTML = `${header('Association Info', 'Edit · កែប្រែ', '/association')}
+      <form id="asf" class="card" novalidate>
+        ${ASSOC_FIELDS.map((f) => {
+          if (f.type === 'photo') {
+            const url = fileUrl(a[f.key]);
+            return `<div class="field"><span class="lbl">${esc(f.kh)}<small>${esc(f.en)}</small></span><div class="upload">
+              <div class="thumb">${url ? `<img src="${esc(url)}" alt="">` : 'None'}</div>
+              <label class="btn sm light">Upload<input type="file" id="qrup" accept="image/*"></label></div></div>`;
+          }
+          return fieldHtml({ ...f, edit: 'admin' }, a, 'admin');
+        }).join('')}
+        <button class="btn block" type="submit">Save · រក្សាទុក</button>
+      </form>`;
+    $('#qrup').addEventListener('change', async (e) => {
+      try {
+        await api('/api/association/qr', { body: { dataUrl: await readFile(e.target.files[0], 1000) } });
+        toast('QR uploaded ✓');
+        viewAssociation(true);
+      } catch (err) { toast(err.message, true); }
+    });
+    $('#asf').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await api('/api/association', { method: 'PUT', body: collect(e.target, null, ASSOC_FIELDS) });
+        toast('Saved ✓');
+        go('/association');
+      } catch (err) { toast(err.message, true); }
+    });
+    return;
+  }
+  const row = (k, v) => (v ? `<dt>${k}</dt><dd>${v}</dd>` : '');
+  const qr = fileUrl(a.qr);
+  const term = parseInt(a.term_months, 10);
+  app.innerHTML = `${header('Association', 'ព័ត៌មានសមាគម')}
+    <section class="card" style="text-align:center">
+      <img src="${IMG('logo.png')}" alt="" style="width:88px;height:88px">
+      <h2 style="justify-content:center;margin:8px 0 2px;line-height:1.5">${esc(a.name_kh)}</h2>
+      <div style="color:var(--muted);font-weight:600">${esc(a.name_en)}</div>
+      ${a.about ? `<p class="pre" style="text-align:left;font-size:14px;line-height:1.6">${esc(a.about)}</p>` : ''}
+    </section>
+    <section class="card">
+      <h2>ការបង់ថ្លៃសមាជិកភាព <small>Membership fee payment</small></h2>
+      <dl class="kv">
+        ${row('Fee', esc(a.fee))}
+        ${row('Validity', term ? `${term} ខែ · months` : 'No expiry')}
+        ${row('Bank', esc(a.bank_name))}
+        ${row('Account name', esc(a.account_name))}
+        ${row('Account no.', `<span class="mono-big">${esc(a.account_no)}</span>`)}
+        ${row('Currency', esc(a.currency))}
+      </dl>
+      ${a.account_no ? `<div class="actions" style="margin-top:12px"><button class="btn sm light" id="copyacc">Copy account no.</button></div>` : ''}
+      ${qr ? `<img class="qr" src="${esc(qr)}" alt="Payment QR code">` : ''}
+      ${a.payment_note ? `<p class="pre" style="font-size:14px;line-height:1.6">${esc(a.payment_note)}</p>` : ''}
+    </section>
+    ${a.phone || a.telegram || a.email || a.address ? `<section class="card"><h2>ទំនាក់ទំនង <small>Contact</small></h2><dl class="kv">
+      ${row('Phone', a.phone ? `<a href="tel:${esc(a.phone)}">${esc(a.phone)}</a>` : '')}
+      ${row('Telegram', esc(a.telegram))}
+      ${row('Email', a.email ? `<a href="mailto:${esc(a.email)}">${esc(a.email)}</a>` : '')}
+      ${row('Address', a.address ? `<span class="pre">${esc(a.address)}</span>` : '')}</dl></section>` : ''}
+    ${isAdmin() ? '<a class="btn block light" href="#/association/edit">Edit association info</a>' : ''}`;
+  $('#copyacc')?.addEventListener('click', () => navigator.clipboard?.writeText(a.account_no.replace(/\s/g, '')).then(() => toast('Copied ✓')));
+}
+
+// ---------- members list (admin + moderator) ----------
 let searchTimer;
 async function viewAdmin() {
   app.className = 'wide';
-  const q = new URLSearchParams(location.hash.split('?')[1] || '').get('q') || '';
-  app.innerHTML = `${header('Members', 'សមាជិក · Admin')}
+  const params = new URLSearchParams(location.hash.split('?')[1] || '');
+  const q = params.get('q') || '';
+  let filter = params.get('s') || (isAdmin() ? 'ALL' : 'REVIEW');
+  app.innerHTML = `${header(isAdmin() ? 'Members' : 'Review', isAdmin() ? 'សមាជិក · Admin' : 'ពិនិត្យសមាជិក · Moderator')}
     <div class="search">${ICON.search}<input id="q" type="search" placeholder="Search name, phone, email, workplace, no…" value="${esc(q)}" autocomplete="off"></div>
+    <div class="filters" id="filters"></div>
     <div class="toolbar">
       <span class="count" id="count"></span>
-      <a class="btn sm" href="#/admin/new">+ Add</a>
+      ${isAdmin() ? `<a class="btn sm" href="#/admin/new">+ Add</a>
       <label class="btn sm light" title="Import members from the Google Form XLSX">Import<input type="file" id="imp" accept=".xlsx,.xls" hidden></label>
-      <a class="btn sm light" href="/api/export.csv" title="Download all members as CSV (Excel)">Export</a>
+      <a class="btn sm light" href="/api/export.csv" title="Download all members as CSV (Excel)">Export</a>` : ''}
     </div>
     <div class="list" id="list"><div class="spin"></div></div>`;
-  const load = async (term) => {
-    try {
-      const rows = await api(`/api/members?q=${encodeURIComponent(term)}`);
-      $('#count').textContent = `${rows.length} member${rows.length === 1 ? '' : 's'}`;
-      $('#list').innerHTML = rows.length ? rows.map((m) => `
-        <a class="mrow" href="#/admin/m/${m.id}">
-          <div class="avatar">${photoHtml(m)}</div>
-          <div class="info"><div class="n1">${esc(m.name_kh)} · ${esc(m.name_en)}</div>
-            <div class="n2">${esc(m.member_no)} · ${esc(m.phone || '')}</div>
-            <div class="n2">${esc(m.workplace || '')}</div></div>
-          <span class="chip ${esc(m.status)}">${esc(m.status || 'ACTIVE')}</span>
-        </a>`).join('') : '<div class="empty">No members found</div>';
-    } catch (e) { toast(e.message, true); }
+  let rows = [];
+  const updateUrl = () => {
+    const p = new URLSearchParams();
+    if ($('#q').value) p.set('q', $('#q').value);
+    p.set('s', filter);
+    const h = `/admin?${p}`;
+    history.replaceState(null, '', `#${h}`);
+    sessionStorage.setItem('adminList', h);
   };
+  const render = () => {
+    const counts = Object.fromEntries(STATUSES.map((s) => [s.key, rows.filter((m) => m.status === s.key).length]));
+    $('#filters').innerHTML = [['ALL', 'All', rows.length], ...STATUSES.map((s) => [s.key, s.key[0] + s.key.slice(1).toLowerCase(), counts[s.key]])]
+      .map(([k, l, n]) => `<button type="button" data-f="${k}" class="${filter === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('');
+    const shown = filter === 'ALL' ? rows : rows.filter((m) => m.status === filter);
+    $('#count').textContent = `${shown.length} member${shown.length === 1 ? '' : 's'}`;
+    $('#list').innerHTML = shown.length ? shown.map((m) => `
+      <a class="mrow" href="#/admin/m/${m.id}">
+        <div class="avatar">${photoHtml(m)}</div>
+        <div class="info"><div class="n1">${esc(m.name_kh)} · ${esc(m.name_en)}</div>
+          <div class="n2">${esc(m.member_no || 'New applicant')} · ${esc(m.phone || m.email || '')}</div>
+          <div class="n2">${esc(m.workplace || '')}</div></div>
+        ${chip(m)}
+      </a>`).join('') : '<div class="empty">No members found</div>';
+  };
+  const load = async (term) => {
+    try { rows = await api(`/api/members?q=${encodeURIComponent(term)}`); render(); } catch (e) { toast(e.message, true); }
+  };
+  updateUrl();
   load(q);
-  $('#q').addEventListener('input', (e) => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
-      history.replaceState(null, '', `#/admin${e.target.value ? `?q=${encodeURIComponent(e.target.value)}` : ''}`);
-      load(e.target.value);
-    }, 200);
+  $('#filters').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-f]');
+    if (!b) return;
+    filter = b.dataset.f;
+    updateUrl();
+    render();
   });
-  $('#imp').addEventListener('change', async (e) => {
+  $('#q').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { updateUrl(); load($('#q').value); }, 200);
+  });
+  $('#imp')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const overwrite = confirm('Overwrite existing members with data from this file?\n\nOK = overwrite, Cancel = only add new members');
@@ -317,30 +490,83 @@ async function viewAdmin() {
   });
 }
 
+// Status info for moderators/admins on the member page.
+function staffNotice(m) {
+  const s = statusOf(m);
+  const by = m.review?.by ? ` by <b>${esc(m.review.by)}</b> · ${esc(fmtDateTime(m.review.at))}` : '';
+  if (s.key === 'REVIEW') return `<div class="notice orange"><h3>Waiting for review</h3><p>${m.applied_at ? `Submitted ${esc(fmtDateTime(m.applied_at))}. ` : ''}Check the information and documents, then approve or reject.</p></div>`;
+  if (s.key === 'REJECTED') return `<div class="notice red"><h3>Rejected</h3>${reviewReason(m)}<p>${by}</p></div>`;
+  if (s.key === 'PENDING') return `<div class="notice grey"><h3>Expired</h3><p>Membership expired on ${esc(fmtDate(m.expires_at))}. Waiting for the member to renew.</p></div>`;
+  if (s.key === 'INACTIVE') return `<div class="notice red"><h3>Inactive</h3><p>${m.consent === CONSENT_YES ? 'Deactivated.' : 'Member did not agree to the declaration.'}</p></div>`;
+  return `<div class="notice green"><h3>Active</h3><p>Valid until ${m.expires_at ? esc(fmtDate(m.expires_at)) : 'no expiry'}.${m.review?.decision === 'approved' ? ` Approved${by}` : ''}</p></div>`;
+}
+
+function rejectDialog(id, onDone) {
+  const d = modal(`<form method="dialog" id="rj">
+    <h3 style="margin-top:0">Reject application · បដិសេធ</h3>
+    <p style="font-size:14px;color:var(--muted);margin-top:0">The member will see this reason and can fix their information.</p>
+    <div class="radio-list">${REJECT_REASONS.map((r, i) => `<label><input type="radio" name="reason" value="${r.key}" ${i === 0 ? 'checked' : ''}>
+      <span><b>${esc(r.kh)}</b><br>${esc(r.en)}</span></label>`).join('')}</div>
+    <label class="field"><span class="lbl">Message to member<small>What is missing or wrong? (required for "Other")</small></span>
+      <textarea name="message" rows="3" placeholder="e.g. Please upload your Council certificate and photo"></textarea></label>
+    <div class="actions"><button type="button" class="btn light" value="cancel" data-close>Cancel</button><button class="btn" style="background:var(--danger)" type="submit">Reject</button></div>
+  </form>`);
+  d.querySelector('[data-close]').onclick = () => d.close();
+  d.querySelector('#rj').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target.elements;
+    try {
+      const m = await api(`/api/members/${id}/review`, { body: { decision: 'reject', reason: f.reason.value, message: f.message.value } });
+      d.close();
+      toast('Rejected');
+      onDone(m);
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
 async function viewAdminEdit(id) {
   app.className = 'wide';
   const isNew = id === 'new';
-  let m = { status: 'ACTIVE' };
+  const admin = isAdmin();
+  if (isNew && !admin) return go('/admin');
+  let m = { status: 'ACTIVE', consent: CONSENT_YES };
   if (!isNew) {
     app.innerHTML = '<div class="spin"></div>';
     try { m = await api(`/api/members/${id}`); } catch (e) { toast(e.message, true); return go('/admin'); }
   }
   const back = sessionStorage.getItem('adminList') || '/admin';
-  app.innerHTML = `${header(isNew ? 'New member' : esc(m.name_en || 'Member'), isNew ? 'Add a member' : `${esc(m.member_no)} · Login: ${esc(m.username || m.email || '—')}`, back)}
+  const role = admin ? 'admin' : 'moderator';
+  const s = m.status;
+  const reviewBtns = s === 'REVIEW' || (admin && ['REJECTED'].includes(s))
+    ? `<button class="btn sm" id="approve" style="background:var(--ok)">✓ Approve</button><button class="btn sm danger" id="reject">✕ Reject</button>` : '';
+  const adminBtns = admin && !isNew ? `
+      ${s !== 'ACTIVE' && s !== 'REVIEW' ? '<button class="btn sm" id="activate" style="background:var(--ok)">Activate</button>' : ''}
+      ${s !== 'INACTIVE' ? '<button class="btn sm light" id="deactivate">Deactivate</button>' : ''}
+      <button class="btn sm light" id="reset">${ICON.key} Reset password</button>` : '';
+  app.innerHTML = `${header(isNew ? 'New member' : esc(m.name_kh || m.name_en || 'Member'), isNew ? 'Add a member' : `${esc(m.name_en || '')} · ${esc(m.member_no || 'New applicant')}`, back)}
     <div class="admin-edit">
       <div class="side">
-        ${isNew ? '' : passCard(m)}
-        ${isNew ? '' : `<div class="actions" style="margin-top:14px">
-          <button class="btn light sm" id="reset">${ICON.key} Reset password</button>
-          <button class="btn danger sm" id="del">Delete</button></div>`}
+        ${isNew ? '' : passCard(m) + staffNotice(m)}
+        ${isNew ? '' : `<div class="actions">${reviewBtns}${adminBtns}</div>`}
+        ${admin && !isNew && m.email ? `<section class="card" style="margin-top:14px"><h2>Account <small>Login: ${esc(m.username || m.email)}</small></h2>
+          <label class="field"><span class="lbl">Role<small>Moderators can approve / reject applications</small></span>
+          <select id="role">${ROLES.map((r) => `<option value="${r.key}" ${(m.role || 'member') === r.key ? 'selected' : ''}>${esc(r.en)}</option>`).join('')}</select></label></section>` : ''}
       </div>
-      <form id="af" novalidate>${formHtml(m, 'admin')}
-        <div class="sticky-save"><button class="btn block" type="submit">${isNew ? 'Create member' : 'Save changes'}</button></div>
-      </form>
+      <div>
+        <form id="af" novalidate>${formHtml(m, role)}
+          ${admin ? `<div class="sticky-save"><button class="btn block" type="submit">${isNew ? 'Create member' : 'Save changes'}</button></div>` : ''}
+        </form>
+        ${admin && !isNew ? `<details class="danger"><summary>Danger zone · លុបសមាជិក</summary>
+          <p>Deleting removes this member, their login and uploaded files permanently. To confirm, type <b>${esc(m.member_no || m.email)}</b> below.</p>
+          <div class="actions"><input id="delconfirm" autocomplete="off" style="flex:1;min-width:160px"><button class="btn danger" id="del" disabled>Delete permanently</button></div>
+        </details>` : ''}
+      </div>
     </div>`;
+  tickClocks();
+  const reload = () => viewAdminEdit(id);
   if (isNew) app.querySelectorAll('[data-upload]').forEach((el) => el.closest('label').replaceWith('Save first, then upload'));
   const form = $('#af');
-  bindUploads(form, m.id, () => viewAdminEdit(id));
+  if (admin) bindUploads(form, m.id, reload);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = form.querySelector('[type=submit]');
@@ -348,43 +574,61 @@ async function viewAdminEdit(id) {
     try {
       const r = await api(isNew ? '/api/members' : `/api/members/${id}`, { method: isNew ? 'POST' : 'PUT', body: collect(form, 'admin') });
       toast('Saved ✓');
-      isNew ? go(`/admin/m/${r.id}`) : viewAdminEdit(id);
+      isNew ? go(`/admin/m/${r.id}`) : reload();
     } catch (err) { toast(err.message, true); btn.disabled = false; }
+  });
+  $('#approve')?.addEventListener('click', async () => {
+    if (!confirm(`Approve ${m.name_en || 'this member'}? They will become ACTIVE.`)) return;
+    try { await api(`/api/members/${id}/review`, { body: { decision: 'approve' } }); toast('Approved ✓'); reload(); } catch (err) { toast(err.message, true); }
+  });
+  $('#reject')?.addEventListener('click', () => rejectDialog(id, reload));
+  const setStatus = async (status) => {
+    try { await api(`/api/members/${id}/status`, { body: { status } }); toast(`Now ${status}`); reload(); } catch (err) { toast(err.message, true); }
+  };
+  $('#activate')?.addEventListener('click', () => setStatus('ACTIVE'));
+  $('#deactivate')?.addEventListener('click', () => confirm('Deactivate this member?') && setStatus('INACTIVE'));
+  $('#role')?.addEventListener('change', async (e) => {
+    try { await api(`/api/members/${id}/role`, { method: 'PUT', body: { role: e.target.value } }); toast('Role updated ✓'); } catch (err) { toast(err.message, true); }
   });
   $('#reset')?.addEventListener('click', async () => {
     if (!confirm('Generate a new temporary password for this member?')) return;
     try {
       const r = await api(`/api/members/${id}/password`, { body: {} });
-      const d = document.createElement('dialog');
-      d.innerHTML = `<h3 style="margin-top:0">Temporary password</h3><p>Share with the member. They must change it after signing in.</p>
+      const d = modal(`<h3 style="margin-top:0">Temporary password</h3><p>Share with the member. They must change it after signing in.</p>
         <div class="field"><span class="lbl">Username</span><div class="mono">${esc(r.username)}</div></div>
         <div class="field"><span class="lbl">Password</span><div class="mono">${esc(r.password)}</div></div>
-        <button class="btn block" onclick="this.closest('dialog').close()">Done</button>`;
-      document.body.append(d);
-      d.addEventListener('close', () => d.remove());
-      d.showModal();
+        <button class="btn block" data-close>Done</button>`);
+      d.querySelector('[data-close]').onclick = () => d.close();
     } catch (err) { toast(err.message, true); }
   });
+  const delInput = $('#delconfirm');
+  delInput?.addEventListener('input', () => { $('#del').disabled = delInput.value.trim() !== (m.member_no || m.email); });
   $('#del')?.addEventListener('click', async () => {
-    if (!confirm(`Delete ${m.name_en || 'this member'}? This cannot be undone.`)) return;
-    try { await api(`/api/members/${id}`, { method: 'DELETE', body: {} }); toast('Deleted'); go('/admin'); } catch (err) { toast(err.message, true); }
+    try {
+      await api(`/api/members/${id}`, { method: 'DELETE', body: { confirm: delInput.value.trim() } });
+      toast('Deleted');
+      go('/admin');
+    } catch (err) { toast(err.message, true); }
   });
 }
 
-// ---------- login ----------
+// ---------- login / register ----------
+const brand = `<div class="brand"><img src="${IMG('logo.png')}" alt="AISARC logo"><img class="name" src="${IMG('name.png')}" alt="ស.គ.ឯ.ស.ប.ក AISARC">
+  <p>ប្រព័ន្ធគ្រប់គ្រងសមាជិក · Membership Portal</p></div>`;
+
 function viewLogin() {
   tabbar.hidden = true;
   app.className = '';
-  app.innerHTML = `<div class="login">
-    <div class="brand"><img src="/img/logo.png" alt="AISARC logo"><img class="name" src="/img/name.png" alt="ស.គ.ឯ.ស.ប.ក AISARC">
-      <p>ប្រព័ន្ធគ្រប់គ្រងសមាជិក · Membership Portal</p></div>
+  app.innerHTML = `<div class="login">${brand}
     <form class="card" id="lf">
       <label class="field"><span class="lbl">Username / Email<small>ឈ្មោះអ្នកប្រើ ឬ អ៊ីម៉ែល</small></span><input name="username" autocomplete="username" required autocapitalize="none"></label>
       <label class="field"><span class="lbl">Password<small>ពាក្យសម្ងាត់</small></span><input name="password" type="password" autocomplete="current-password" required></label>
       <button class="btn block" type="submit">Sign in · ចូល</button>
       <p class="err" id="lerr"></p>
       <div id="gwrap" hidden><div class="divider">or</div><div id="gbtn"></div></div>
-      <p class="hint">First time? Your password is your phone number. Forgot it? Contact the AISARC admin.</p>
+      <div class="divider">New member? · សមាជិកថ្មី?</div>
+      <a class="btn block light" href="#/register">Register · ចុះឈ្មោះ</a>
+      <p class="hint">Existing members: your first password is your phone number. Forgot it? Contact the AISARC admin.</p>
     </form></div>`;
   $('#lf').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -395,6 +639,41 @@ function viewLogin() {
     } catch (err) { $('#lerr').textContent = err.message; }
   });
   initGoogle();
+}
+
+function viewRegister() {
+  tabbar.hidden = true;
+  app.className = '';
+  app.innerHTML = `<div class="login">${brand}
+    <form class="card" id="rf" novalidate>
+      <h2>ចុះឈ្មោះជាសមាជិក <small>Register as a member</small></h2>
+      <label class="field"><span class="lbl">គោត្តនាម និង នាមខ្លួន *<small>Full name (Khmer)</small></span><input name="name_kh" required></label>
+      <label class="field"><span class="lbl">ឈ្មោះជាអក្សរឡាតាំង *<small>Full name (Latin)</small></span><input name="name_en" required style="text-transform:uppercase"></label>
+      <label class="field"><span class="lbl">អ៊ីម៉ែល *<small>Email – used to sign in (also with Google)</small></span><input name="email" type="email" required autocomplete="email" autocapitalize="none"></label>
+      <label class="field"><span class="lbl">លេខទូរស័ព្ទ<small>Phone</small></span><input name="phone" type="tel" autocomplete="tel"></label>
+      <label class="field"><span class="lbl">ពាក្យសម្ងាត់ *<small>Password – at least 8 characters</small></span><input name="password" type="password" minlength="8" required autocomplete="new-password"></label>
+      <label class="field"><span class="lbl">បញ្ជាក់ពាក្យសម្ងាត់ *<small>Confirm password</small></span><input name="confirm" type="password" required autocomplete="new-password"></label>
+      <label class="check"><input type="checkbox" name="consent"><span>${esc(DECLARATION)}</span></label>
+      <button class="btn block" type="submit">Register · ចុះឈ្មោះ</button>
+      <p class="err" id="rerr"></p>
+      <p class="hint">After registering, complete your profile. A moderator will review and approve your membership.</p>
+      <a class="btn block light" href="#/login">Back to sign in</a>
+    </form></div>`;
+  $('#rf').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target.elements;
+    if (f.password.value !== f.confirm.value) return ($('#rerr').textContent = 'Passwords do not match');
+    if (!f.consent.checked) return ($('#rerr').textContent = 'Please agree to the declaration · សូមយល់ព្រមលើសេចក្តីប្រកាស');
+    try {
+      const r = await api('/api/register', { body: {
+        name_kh: f.name_kh.value, name_en: f.name_en.value, email: f.email.value, phone: f.phone.value, password: f.password.value, consent: true,
+      } });
+      state.user = r.user;
+      state.member = (await api('/api/me')).member;
+      toast('Registered ✓ Please complete your profile');
+      go('/profile');
+    } catch (err) { $('#rerr').textContent = err.message; }
+  });
 }
 
 function initGoogle() {
@@ -428,7 +707,7 @@ async function afterLogin(user) {
   go(user.must_change ? '/password' : home());
 }
 
-const home = () => (state.user?.member_id ? '/pass' : '/admin');
+const home = () => (state.user?.member_id ? '/pass' : isStaff() ? '/admin' : '/association');
 
 // ---------- router ----------
 async function route() {
@@ -442,18 +721,22 @@ async function route() {
       state.member = me.member;
     } catch { /* not signed in */ }
   }
-  if (!state.user) return path === '/login' ? viewLogin() : go('/login');
-  if (path === '/login' || path === '/') return go(home());
+  if (!state.user) {
+    if (path === '/register') return viewRegister();
+    return path === '/login' ? viewLogin() : go('/login');
+  }
+  if (['/login', '/register', '/'].includes(path)) return go(home());
   if (state.user.must_change && path !== '/password') return go('/password');
 
-  const admin = state.user.role === 'admin';
   window.scrollTo(0, 0);
   if (path === '/pass' && state.member) { setTabs('/pass'); return viewPass(); }
   if (path === '/profile' && state.member) { setTabs('/profile'); return viewProfile(); }
   if (path === '/password') { setTabs('/password'); return viewPassword(); }
-  if (path === '/admin' && admin) { sessionStorage.setItem('adminList', location.hash.slice(1)); setTabs('/admin'); return viewAdmin(); }
+  if (path === '/association') { setTabs('/association'); return viewAssociation(); }
+  if (path === '/association/edit' && isAdmin()) { setTabs('/association'); return viewAssociation(true); }
+  if (path === '/admin' && isStaff()) { setTabs('/admin'); return viewAdmin(); }
   const mm = path.match(/^\/admin\/(?:m\/(\d+)|(new))$/);
-  if (mm && admin) { setTabs('/admin'); return viewAdminEdit(mm[1] || mm[2]); }
+  if (mm && isStaff()) { setTabs('/admin'); return viewAdminEdit(mm[1] || mm[2]); }
   go(home());
 }
 
