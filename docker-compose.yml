@@ -1,0 +1,50 @@
+name: aisarc
+
+services:
+  app:
+    build: .
+    image: aisarc-app:latest
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_DIR: /data
+    ports:
+      - "${APP_PORT:-8080}:3000"
+    volumes:
+      - aisarc-data:/data
+
+  # Watches the git remote and rebuilds/restarts "app" whenever new commits are pushed.
+  updater:
+    build: ./updater
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PROJECT: aisarc
+      GIT_BRANCH: ${GIT_BRANCH:-main}
+      POLL_INTERVAL: ${POLL_INTERVAL:-60}
+    volumes:
+      - .:/repo
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${SSH_KEY_DIR:-./updater/ssh}:/root/.ssh:ro
+
+  # Optional HTTPS (required for Google sign-in on a real domain): docker compose --profile https up -d
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  aisarc-data:
+  caddy-data:

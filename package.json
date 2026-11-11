@@ -1,0 +1,19 @@
+{
+  "name": "aisarc-membership",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AISARC membership management web app",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "import": "node scripts/import.js"
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  }
+}
