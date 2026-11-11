@@ -6,7 +6,7 @@ Mobile-first membership management web app for **ស.គ.ឯ.ស.ប.ក – AIS
 - **Admins** search, view, add, edit, delete members, reset passwords, import the Google Form XLSX and export CSV.
 - The **"Member since" timestamp**, membership no., status, login email, payment and consent fields are admin-only.
 
-Tech: Node.js 24 + Express, built-in `node:sqlite` (no native deps), vanilla JS front end (no build step). Image ≈ 60 MB.
+Tech: Node.js 24 + Express, built-in `node:sqlite` (no native deps), vanilla JS front end (no build step, ~45 KB of app code), on `node:24-alpine`.
 
 ## Quick start (local)
 
