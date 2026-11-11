@@ -30,7 +30,7 @@ Tech: Node.js 24 + Express, built-in `node:sqlite` (no native deps), vanilla JS 
 
 ```bash
 npm install
-ADMIN_USERNAME=admin ADMIN_PASSWORD=Admin12345 npm run dev      # http://localhost:3000
+ADMIN_USERNAME=admin ADMIN_PASSWORD='<a-long-random-password>' COOKIE_SECURE=false npm run dev   # http://localhost:3000
 npm run import -- "path/to/responses.xlsx"                       # load members
 ```
 
@@ -81,12 +81,35 @@ Member data lives in the `aisarc-data` Docker volume and survives updates.
 
 | Who | Username | Initial password |
 | --- | --- | --- |
-| Admin | `ADMIN_USERNAME` | `ADMIN_PASSWORD` (from `.env`, created on first start) |
-| Imported member | their email | their phone number (digits only) – must be changed at first login |
+| First admin | `ADMIN_USERNAME` | `ADMIN_PASSWORD` from `.env` (only if no admin exists yet) – must be changed at first sign-in |
+| Imported member | their email | none – sign in with Google (same email), or ask an admin for a temporary password |
 | Self-registered member | their email | chosen at registration |
 
-Admins can generate a new temporary password for any member, and make a member a **moderator** or **admin**
-from the member's page (Account → Role). Google accounts listed in `ADMIN_EMAILS` are admins.
+Admins can generate a temporary password for any member (valid 72 hours, must be changed at first sign-in), and make
+a member a **moderator** or **admin** from the member's page (Account → Role). Google accounts listed in
+`ADMIN_EMAILS` are admins.
+
+## Security
+
+- **Passwords:** scrypt (N=2^15, per-password salt), checked in constant time without blocking the server; older hashes
+  are upgraded at the next sign-in.
+- **Temporary passwords:** expire after 72 hours. "Must change password" is enforced by the server.
+- **Sessions:** HMAC-signed, HttpOnly, SameSite=Lax cookie, `Secure` automatically on https, 14-day lifetime.
+  Logout, password change, admin reset and role change revoke all of that user's sessions; a restore signs everyone out.
+- **Rate limits:** 10 failed sign-ins per account and 30 per IP per 15 minutes, and 5 registrations per IP.
+  `X-Forwarded-For` is only trusted from loopback/private proxies (`TRUST_PROXY`).
+- **Email ownership:** the login email can only be changed by an admin. Signing in with Google proves ownership; if the
+  account was registered by someone who hadn't proven it, any password they set is removed.
+- **Uploads:** only JPEG/PNG/WebP (and PDF certificates), checked against the real file content, max 8 MB, random file
+  names, served only to the owner and staff with a sandboxing Content-Security-Policy.
+- **Other protections:** strict Content-Security-Policy, HSTS, X-Frame-Options, `nosniff` and no-store caching for API
+  responses. All SQL is parameterized, all output HTML-escaped, and no error details or stack traces reach clients
+  (`NODE_ENV=production`).
+- **Docker:** the app runs as a non-root user on a read-only filesystem with all Linux capabilities dropped. The updater
+  only receives the git settings, and the app never sees `GIT_TOKEN`.
+- **Auto-update risk:** anyone who can push to the watched branch can change what runs on the server. Keep the
+  repository private, protect the branch, and give the updater a read-only token.
+- **Backups:** contain all personal data and password hashes, so store downloaded backup files securely.
 
 ## Data
 

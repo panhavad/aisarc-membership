@@ -4,3 +4,6 @@ data
 .env
 *.xlsx
 updater
+.env.*
+*.json.gz
+README.md

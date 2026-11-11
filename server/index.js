@@ -11,8 +11,9 @@ import {
   termMonths, addMonths, toNumberText,
 } from './db.js';
 import {
-  hashPassword, verifyPassword, setSession, clearSession, requireUser, requireAdmin, requireStaff,
-  loginLimited, loginFailed, loginOk, verifyGoogleToken, randomPassword,
+  hashPassword, verifyPassword, needsRehash, setSession, clearSession, requireUser, requireAdmin, requireStaff,
+  loginLimited, loginFailed, loginOk, registerLimited, registerHit, verifyGoogleToken, randomPassword,
+  revokeUserSessions, sessionUser, SECURE,
 } from './auth.js';
 import * as XLSX from 'xlsx';
 import { createBackup, restoreBackup } from './backup.js';
@@ -25,19 +26,68 @@ const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/+$/, '');
 // Redirect mode is used when a redirect URI is known; otherwise the Google popup is used.
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || (PUBLIC_URL ? `${PUBLIC_URL}/auth/google/callback` : '');
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').toLowerCase().split(',').map((s) => s.trim()).filter(Boolean);
+const TEMP_PW_HOURS = 72;
 
-// Bootstrap admin account from env (password is only set when the account is first created).
-if (process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD) {
-  const u = db.prepare('SELECT id FROM users WHERE username = ?').get(process.env.ADMIN_USERNAME);
-  if (!u) db.prepare("INSERT INTO users (username, password_hash, role) VALUES (?,?,'admin')")
+// Bootstrap admin from env only when there is no admin at all (e.g. first start), so a deleted
+// admin does not come back on restart. The env password must be changed at first sign-in.
+if (process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD
+  && !db.prepare("SELECT id FROM users WHERE role = 'admin'").get()
+  && !db.prepare('SELECT id FROM users WHERE username = ?').get(process.env.ADMIN_USERNAME)) {
+  db.prepare("INSERT INTO users (username, password_hash, role, must_change) VALUES (?,?,'admin',1)")
     .run(process.env.ADMIN_USERNAME, hashPassword(process.env.ADMIN_PASSWORD));
+}
+
+// One-off: remove the old "phone number" first passwords of imported members that were never changed.
+if (!db.prepare("SELECT 1 FROM settings WHERE key = 'mig_phone_pw'").get()) {
+  const rows = db.prepare(`SELECT u.id, u.password_hash, m.data FROM users u JOIN members m ON m.id = u.member_id
+    WHERE u.role = 'member' AND u.must_change = 1 AND u.password_hash IS NOT NULL`).all();
+  let cleared = 0;
+  for (const r of rows) {
+    const d = JSON.parse(r.data);
+    for (const ph of [d.phone, d.telegram]) {
+      const digits = String(ph || '').replace(/\D/g, '');
+      if (digits.length >= 6 && await verifyPassword(digits, r.password_hash)) {
+        db.prepare('UPDATE users SET password_hash = NULL, must_change = 0, token_version = token_version + 1 WHERE id = ?').run(r.id);
+        cleared++;
+        break;
+      }
+    }
+  }
+  db.prepare("INSERT INTO settings (key, value) VALUES ('mig_phone_pw', ?)").run(String(cleared));
+  if (cleared) console.log(`[security] removed ${cleared} phone-number first passwords`);
 }
 
 const app = express();
 app.disable('x-powered-by');
-app.set('trust proxy', true);
+// Only trust X-Forwarded-For from proxies on loopback / private (Docker) networks, so clients
+// cannot forge their IP to dodge rate limits. Override with TRUST_PROXY if needed.
+app.set('trust proxy', process.env.TRUST_PROXY || 'loopback, linklocal, uniquelocal');
+
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://accounts.google.com/gsi/client",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https://drive.google.com https://*.googleusercontent.com",
+  "connect-src 'self' https://accounts.google.com/gsi/",
+  "frame-src https://accounts.google.com/gsi/",
+  "form-action 'self' https://accounts.google.com",
+  "base-uri 'none'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+].join('; ');
+
 app.use((req, res, next) => {
-  res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'same-origin' });
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'same-origin',
+    'Content-Security-Policy': CSP,
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+    'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+  });
+  if (SECURE) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  if (req.path.startsWith('/api/')) res.set('Cache-Control', 'no-store');
   next();
 });
 // Mutating API calls must be JSON (or a binary backup upload): both need a CORS preflight
@@ -47,7 +97,11 @@ app.use('/api', (req, res, next) => {
   if (req.path === '/restore' && req.is('application/octet-stream')) return next();
   res.status(415).json({ error: 'JSON required' });
 });
-app.use(express.json({ limit: '12mb' }));
+// Large bodies only where files are uploaded (signed-in users); everything else is capped small.
+const BIG_JSON = new Set(['/api/upload', '/api/association/qr']);
+const jsonSmall = express.json({ limit: '64kb' });
+const jsonBig = express.json({ limit: '12mb' });
+app.use((req, res, next) => (BIG_JSON.has(req.path) ? jsonBig : jsonSmall)(req, res, next));
 
 const userPayload = (u) => ({ id: u.id, username: u.username, role: u.role, member_id: u.member_id, must_change: !!u.must_change });
 const nowIso = () => new Date().toISOString();
@@ -69,7 +123,7 @@ function cleanValue(f, v) {
 function pick(body, role) {
   const out = {};
   for (const [k, v] of Object.entries(body || {})) {
-    const f = FIELD_MAP[k];
+    const f = Object.hasOwn(FIELD_MAP, k) ? FIELD_MAP[k] : null;
     if (!f || !canEdit(f, role) || ['file', 'photo'].includes(f.type)) continue;
     const val = cleanValue(f, v);
     if (val !== undefined) out[k] = val;
@@ -101,14 +155,16 @@ function applyConsent(rec, existing = {}) {
   }
 }
 
-// Keep the login username in sync with the member's email.
+// Keep the login username in sync with the member's email (admin-controlled).
 function syncUsername(memberId, email) {
   if (!email) return;
-  const u = db.prepare('SELECT id FROM users WHERE member_id = ?').get(memberId);
+  const u = db.prepare('SELECT id, username FROM users WHERE member_id = ?').get(memberId);
   const clash = db.prepare('SELECT id FROM users WHERE username = ? AND member_id IS NOT ?').get(email, memberId);
   if (clash) return;
-  if (u) db.prepare('UPDATE users SET username = ? WHERE id = ?').run(email, u.id);
-  else db.prepare("INSERT INTO users (username, role, member_id) VALUES (?, 'member', ?)").run(email, memberId);
+  if (u && u.username.toLowerCase() !== email.toLowerCase()) {
+    // A new email has not been proven by its owner yet.
+    db.prepare('UPDATE users SET username = ?, email_verified = 0 WHERE id = ?').run(email, u.id);
+  } else if (!u) db.prepare("INSERT INTO users (username, role, member_id) VALUES (?, 'member', ?)").run(email, memberId);
 }
 
 // Approve / activate: assigns membership no. + join date (first time) and extends validity by one term.
@@ -124,101 +180,126 @@ function activate(id, by) {
   return getMember(id);
 }
 
-function createApplicant({ name_kh = '', name_en = '', email, phone = '' }, passwordHash) {
+function createApplicant({ name_kh = '', name_en = '', email, phone = '' }, passwordHash, emailVerified) {
   const id = saveMember(null, {
     name_kh, name_en: name_en.toUpperCase(), email: email.toLowerCase(), phone, consent: CONSENT_YES,
     status: 'REVIEW', applied_at: nowIso(),
   });
-  db.prepare("INSERT INTO users (username, password_hash, role, member_id) VALUES (?, ?, 'member', ?)")
-    .run(email.toLowerCase(), passwordHash, id);
+  db.prepare("INSERT INTO users (username, password_hash, role, member_id, email_verified) VALUES (?, ?, 'member', ?, ?)")
+    .run(email.toLowerCase(), passwordHash, id, emailVerified ? 1 : 0);
   return db.prepare('SELECT * FROM users WHERE member_id = ?').get(id);
 }
+
+// Errors whose message is safe to show to the user.
+class UserError extends Error {}
 
 // ---------- public ----------
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, googleRedirectUri: GOOGLE_REDIRECT_URI }));
 
-app.post('/api/login', (req, res) => {
-  const username = String(req.body?.username || '').trim();
-  const key = `${req.ip}|${username.toLowerCase()}`;
-  if (loginLimited(key)) return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
-  const u = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-  if (!u || !verifyPassword(req.body?.password || '', u.password_hash)) {
-    loginFailed(key);
+app.post('/api/login', async (req, res) => {
+  const username = String(req.body?.username || '').trim().slice(0, 200);
+  const password = String(req.body?.password || '');
+  if (loginLimited(req.ip, username)) return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
+  const u = username ? db.prepare('SELECT * FROM users WHERE username = ?').get(username) : null;
+  const ok = await verifyPassword(password, u?.password_hash); // runs even for unknown users (constant time)
+  if (!u || !ok) {
+    loginFailed(req.ip, username);
     return res.status(401).json({ error: 'Invalid username or password' });
   }
-  loginOk(key);
+  if (u.must_change && u.temp_expires && new Date(u.temp_expires) < new Date())
+    return res.status(401).json({ error: 'This temporary password has expired. Please ask the admin for a new one.' });
+  loginOk(req.ip, username);
+  if (needsRehash(u.password_hash)) db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), u.id);
   setSession(res, u);
   res.json({ user: userPayload(u) });
 });
 
 app.post('/api/register', (req, res) => {
-  const key = `register|${req.ip}`;
-  if (loginLimited(key)) return res.status(429).json({ error: 'Too many registrations. Try again later.' });
+  if (registerLimited(req.ip)) return res.status(429).json({ error: 'Too many registrations. Try again later.' });
+  registerHit(req.ip); // every attempt counts, including rejected ones
   const b = req.body || {};
-  const email = String(b.email || '').trim().toLowerCase();
-  const name_kh = String(b.name_kh || '').trim();
-  const name_en = String(b.name_en || '').trim();
+  const email = String(b.email || '').trim().toLowerCase().slice(0, 200);
+  const name_kh = String(b.name_kh || '').trim().slice(0, 200);
+  const name_en = String(b.name_en || '').trim().slice(0, 200);
+  const password = String(b.password || '');
   if (!name_kh || !name_en) return res.status(400).json({ error: 'Please enter your name in Khmer and Latin letters' });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Please enter a valid email' });
-  if (String(b.password || '').length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  if (password.length < 8 || password.length > 256) return res.status(400).json({ error: 'Password must be 8–256 characters' });
   if (b.consent !== true) return res.status(400).json({ error: 'You must agree to the declaration' });
-  const err = validate({ email, name_kh, name_en });
-  if (err) return res.status(400).json({ error: err });
-  loginFailed(key); // counts registrations per IP
-  const u = createApplicant({ name_kh, name_en, email, phone: String(b.phone || '').trim() }, hashPassword(b.password));
+  if (validate({ email, name_kh, name_en }))
+    return res.status(400).json({ error: 'This email cannot be registered. If you are already a member, sign in with Google or contact the admin.' });
+  const u = createApplicant({ name_kh, name_en, email, phone: String(b.phone || '').trim().slice(0, 50) }, hashPassword(password), false);
   setSession(res, u);
   res.json({ user: userPayload(u) });
 });
 
 // Resolves a verified Google identity to a user (admin, existing member, or new applicant).
+// Google proves the person owns the email; any password on a not-yet-verified account was set by
+// someone who had not proven ownership, so it is removed and their sessions are revoked.
 function googleUser(g) {
   const email = g.email.toLowerCase();
+  const claim = (u) => {
+    if (!u.email_verified) {
+      db.prepare('UPDATE users SET email_verified = 1, password_hash = NULL, must_change = 0, temp_expires = NULL, token_version = token_version + 1 WHERE id = ?').run(u.id);
+    }
+    return db.prepare('SELECT * FROM users WHERE id = ?').get(u.id);
+  };
   if (ADMIN_EMAILS.includes(email)) {
     const u = db.prepare("SELECT * FROM users WHERE username = ? AND role = 'admin'").get(email);
-    if (u) return u;
-    const id = db.prepare("INSERT INTO users (username, role) VALUES (?, 'admin')").run(email).lastInsertRowid;
+    if (u) return claim(u);
+    if (db.prepare('SELECT id FROM users WHERE username = ?').get(email)) throw new UserError('This account cannot be used for admin sign-in');
+    const id = db.prepare("INSERT INTO users (username, role, email_verified) VALUES (?, 'admin', 1)").run(email).lastInsertRowid;
     return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
   }
   const m = db.prepare('SELECT id FROM members WHERE lower(email) = lower(?)').get(email);
   if (m) {
     syncUsername(m.id, email);
-    return db.prepare('SELECT * FROM users WHERE member_id = ?').get(m.id);
+    return claim(db.prepare('SELECT * FROM users WHERE member_id = ?').get(m.id));
   }
   // Unknown Google account: register as a new applicant waiting for review.
-  if (db.prepare('SELECT id FROM users WHERE username = ?').get(email)) throw new Error('Account exists, sign in with password');
-  return createApplicant({ name_en: g.name, email }, null);
+  if (db.prepare('SELECT id FROM users WHERE username = ?').get(email)) throw new UserError('Account exists, sign in with password');
+  return createApplicant({ name_en: g.name, email }, null, true);
 }
+const safeMessage = (e) => (e instanceof UserError ? e.message : 'Google sign-in failed');
 
 // Popup mode (no PUBLIC_URL): the browser posts the Google credential as JSON.
 app.post('/api/login/google', async (req, res) => {
   if (!GOOGLE_CLIENT_ID) return res.status(400).json({ error: 'Google sign-in is not configured' });
+  if (loginLimited(req.ip, 'google')) return res.status(429).json({ error: 'Too many attempts. Try again later.' });
   const g = await verifyGoogleToken(String(req.body?.credential || ''), GOOGLE_CLIENT_ID).catch(() => null);
-  if (!g) return res.status(401).json({ error: 'Google sign-in failed' });
+  if (!g) { loginFailed(req.ip, 'google'); return res.status(401).json({ error: 'Google sign-in failed' }); }
   try {
     const u = googleUser(g);
     setSession(res, u);
     res.json({ user: userPayload(u) });
-  } catch (e) { res.status(409).json({ error: e.message }); }
+  } catch (e) { res.status(409).json({ error: safeMessage(e) }); }
 });
 
 // Redirect mode: Google posts the credential to GOOGLE_REDIRECT_URI (must be listed in
 // "Authorized redirect URIs"). Works inside in-app browsers where popups are blocked.
-app.post('/auth/google/callback', express.urlencoded({ extended: false }), async (req, res) => {
+app.post('/auth/google/callback', express.urlencoded({ extended: false, limit: '16kb' }), async (req, res) => {
   const fail = (msg) => res.redirect(303, `/#/login?error=${encodeURIComponent(msg)}`);
   if (!GOOGLE_CLIENT_ID) return fail('Google sign-in is not configured');
+  if (loginLimited(req.ip, 'google')) return fail('Too many attempts. Try again later.');
   // Double-submit CSRF check required by Google Identity Services.
   const cookieToken = /(?:^|;\s*)g_csrf_token=([^;]+)/.exec(req.headers.cookie || '')?.[1];
   if (!cookieToken || cookieToken !== req.body?.g_csrf_token) return fail('Google sign-in failed (CSRF check)');
   const g = await verifyGoogleToken(String(req.body?.credential || ''), GOOGLE_CLIENT_ID).catch(() => null);
-  if (!g) return fail('Google sign-in failed');
+  if (!g) { loginFailed(req.ip, 'google'); return fail('Google sign-in failed'); }
   try {
     setSession(res, googleUser(g));
     res.redirect(303, '/#/');
-  } catch (e) { fail(e.message); }
+  } catch (e) { fail(safeMessage(e)); }
 });
 
-app.post('/api/logout', (req, res) => { clearSession(res); res.json({ ok: true }); });
+// Logout signs this account out on every device (revokes all its session cookies).
+app.post('/api/logout', (req, res) => {
+  const u = sessionUser(req);
+  if (u) revokeUserSessions(u.id);
+  clearSession(res);
+  res.json({ ok: true });
+});
 
 // ---------- signed-in user ----------
 app.get('/api/me', requireUser, (req, res) => {
@@ -233,7 +314,6 @@ app.put('/api/me', requireUser, (req, res) => {
   if (err) return res.status(400).json({ error: err });
   applyConsent(rec, existing);
   saveMember(existing.id, rec);
-  if (rec.email) syncUsername(existing.id, rec.email);
   res.json({ member: getMember(existing.id) });
 });
 
@@ -249,25 +329,42 @@ app.post('/api/me/submit', requireUser, (req, res) => {
   res.json({ member: getMember(m.id) });
 });
 
-app.post('/api/me/password', requireUser, (req, res) => {
-  const { current = '', password = '' } = req.body || {};
+// Changing the password signs out all other devices; this device gets a fresh session.
+app.post('/api/me/password', requireUser, async (req, res) => {
+  const current = String(req.body?.current || '');
+  const password = String(req.body?.password || '');
   const u = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  if (u.password_hash && !u.must_change && !verifyPassword(current, u.password_hash))
-    return res.status(400).json({ error: 'Current password is incorrect' });
-  if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
-  db.prepare('UPDATE users SET password_hash = ?, must_change = 0 WHERE id = ?').run(hashPassword(password), u.id);
+  if (u.password_hash && !u.must_change) {
+    if (loginLimited(req.ip, u.username)) return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
+    if (!(await verifyPassword(current, u.password_hash))) {
+      loginFailed(req.ip, u.username);
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+  }
+  if (password.length < 8 || password.length > 256) return res.status(400).json({ error: 'Password must be 8–256 characters' });
+  db.prepare('UPDATE users SET password_hash = ?, must_change = 0, temp_expires = NULL, token_version = token_version + 1 WHERE id = ?')
+    .run(hashPassword(password), u.id);
+  setSession(res, u);
   res.json({ ok: true });
 });
 
 // Upload photo / certificate as a data URL (client resizes photos before sending).
+// The file content is checked against its real signature, not just the declared type.
 const MIME_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' };
+const MAGIC = {
+  jpg: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  png: (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  webp: (b) => b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP',
+  pdf: (b) => b.toString('latin1', 0, 5) === '%PDF-',
+};
 function storeDataUrl(dataUrl, prefix, allowPdf) {
-  const m = /^data:([\w/+.-]+);base64,(.+)$/.exec(String(dataUrl || ''));
+  const m = /^data:([\w/+.-]+);base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl || ''));
   const ext = m && MIME_EXT[m[1]];
-  if (!ext || (!allowPdf && ext === 'pdf')) throw Object.assign(new Error('Unsupported file type'), { status: 400 });
+  if (!ext || (!allowPdf && ext === 'pdf')) throw new UserError('Unsupported file type');
   const buf = Buffer.from(m[2], 'base64');
-  if (buf.length > 8 * 1024 * 1024) throw Object.assign(new Error('File too large (max 8MB)'), { status: 413 });
-  const name = `${prefix}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+  if (buf.length > 8 * 1024 * 1024) throw new UserError('File too large (max 8MB)');
+  if (!MAGIC[ext](buf)) throw new UserError('File content does not match its type');
+  const name = `${prefix}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
   fs.writeFileSync(path.join(UPLOAD_DIR, name), buf);
   return name;
 }
@@ -277,7 +374,7 @@ const removeUpload = (v) => {
 
 app.post('/api/upload', requireUser, (req, res) => {
   const { field, dataUrl, memberId } = req.body || {};
-  const f = FIELD_MAP[field];
+  const f = Object.hasOwn(FIELD_MAP, field) ? FIELD_MAP[field] : null;
   if (!f || !['file', 'photo'].includes(f.type)) return res.status(400).json({ error: 'Invalid field' });
   const id = req.user.role === 'admin' && memberId ? Number(memberId) : req.user.member_id;
   const existing = id && getMember(id);
@@ -287,17 +384,23 @@ app.post('/api/upload', requireUser, (req, res) => {
     removeUpload(existing[field]);
     saveMember(id, { [field]: `file:${name}` });
     res.json({ member: getMember(id) });
-  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+  } catch (e) {
+    if (!(e instanceof UserError)) console.error(e);
+    res.status(400).json({ error: e instanceof UserError ? e.message : 'Upload failed' });
+  }
 });
 
 app.get('/api/files/:name', requireUser, (req, res) => {
   const name = path.basename(req.params.name);
+  if (!/^(\d+-(photo|cert_file)|assoc-qr)-[0-9a-f]+\.(jpg|png|webp|pdf)$/.test(name)) return res.status(404).end();
   const isStaff = ['admin', 'moderator'].includes(req.user.role);
   const isPublic = name.startsWith('assoc-');
   if (!isStaff && !isPublic && req.user.member_id !== Number(name.split('-')[0])) return res.status(403).end();
   const file = path.join(UPLOAD_DIR, name);
   if (!fs.existsSync(file)) return res.status(404).end();
-  res.set('Cache-Control', 'private, max-age=86400').sendFile(file);
+  // Sandbox served files so a crafted file can never run script on this site.
+  res.set({ 'Cache-Control': 'private, max-age=86400', 'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'" });
+  res.sendFile(file);
 });
 
 // ---------- association info ----------
@@ -319,7 +422,10 @@ app.post('/api/association/qr', requireAdmin, (req, res) => {
     const name = storeDataUrl(req.body?.dataUrl, 'assoc-qr', false);
     removeUpload(getAssociation().qr);
     res.json(saveAssociation({ qr: `file:${name}` }));
-  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+  } catch (e) {
+    if (!(e instanceof UserError)) console.error(e);
+    res.status(400).json({ error: e instanceof UserError ? e.message : 'Upload failed' });
+  }
 });
 
 // ---------- staff: moderators + admins ----------
@@ -392,7 +498,7 @@ app.put('/api/members/:id/role', requireAdmin, (req, res) => {
   const u = db.prepare('SELECT * FROM users WHERE member_id = ?').get(m.id);
   if (u.role === 'admin' && role !== 'admin' && (u.id === req.user.id || adminCount() <= 1))
     return res.status(400).json({ error: 'You cannot remove your own admin role or the last admin' });
-  db.prepare('UPDATE users SET role = ? WHERE member_id = ?').run(role, m.id);
+  db.prepare('UPDATE users SET role = ?, token_version = token_version + 1 WHERE member_id = ?').run(role, m.id);
   res.json(getMember(m.id));
 });
 
@@ -400,21 +506,27 @@ app.delete('/api/members/:id', requireAdmin, (req, res) => {
   const m = getMember(Number(req.params.id));
   if (!m) return res.status(404).json({ error: 'Not found' });
   if (String(req.body?.confirm || '').trim() !== (m.member_no || m.email)) return res.status(400).json({ error: 'Confirmation text does not match' });
+  const u = db.prepare('SELECT * FROM users WHERE member_id = ?').get(m.id);
+  if (u && (u.id === req.user.id || (u.role === 'admin' && adminCount() <= 1)))
+    return res.status(400).json({ error: 'You cannot delete your own account or the last admin' });
   removeUpload(m.photo);
   removeUpload(m.cert_file);
   deleteMember(m.id);
   res.json({ ok: true });
 });
 
-// Reset a member's password; returns a one-time temporary password for the admin to share.
+const tempExpiry = () => new Date(Date.now() + TEMP_PW_HOURS * 3600e3).toISOString();
+
+// Reset a member's password; returns a one-time temporary password (valid 72h) for the admin to share.
 app.post('/api/members/:id/password', requireAdmin, (req, res) => {
   const m = getMember(Number(req.params.id));
   if (!m) return res.status(404).json({ error: 'Not found' });
   if (!m.email) return res.status(400).json({ error: 'Member needs an email to sign in' });
   syncUsername(m.id, m.email);
   const pw = randomPassword();
-  db.prepare('UPDATE users SET password_hash = ?, must_change = 1 WHERE member_id = ?').run(hashPassword(pw), m.id);
-  res.json({ username: m.email, password: pw });
+  db.prepare('UPDATE users SET password_hash = ?, must_change = 1, temp_expires = ?, token_version = token_version + 1 WHERE member_id = ?')
+    .run(hashPassword(pw), tempExpiry(), m.id);
+  res.json({ username: m.email, password: pw, expires_hours: TEMP_PW_HOURS });
 });
 
 // Excel export of all members, or only the given ids (?ids=1,2,3).
@@ -461,9 +573,10 @@ app.post('/api/users', requireAdmin, (req, res) => {
   const role = req.body?.role;
   if (!/^[\w.@+-]{3,64}$/.test(username)) return res.status(400).json({ error: 'Username: 3–64 letters, numbers or . _ @ + -' });
   if (!['admin', 'moderator'].includes(role)) return res.status(400).json({ error: 'Role must be admin or moderator' });
-  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  if (password.length < 8 || password.length > 256) return res.status(400).json({ error: 'Password must be 8–256 characters' });
   if (db.prepare('SELECT id FROM users WHERE username = ?').get(username)) return res.status(400).json({ error: 'Username already exists' });
-  db.prepare('INSERT INTO users (username, password_hash, role, must_change) VALUES (?,?,?,1)').run(username, hashPassword(password), role);
+  db.prepare('INSERT INTO users (username, password_hash, role, must_change, temp_expires) VALUES (?,?,?,1,?)')
+    .run(username, hashPassword(password), role, tempExpiry());
   res.json({ ok: true });
 });
 
@@ -477,16 +590,18 @@ app.put('/api/users/:id', requireAdmin, (req, res) => {
   if (!allowed.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   if (u.role === 'admin' && role !== 'admin' && (u.id === req.user.id || adminCount() <= 1))
     return res.status(400).json({ error: 'You cannot remove your own admin role or the last admin' });
-  db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, u.id);
+  db.prepare('UPDATE users SET role = ?, token_version = token_version + 1 WHERE id = ?').run(role, u.id);
   res.json({ ok: true });
 });
 
 app.post('/api/users/:id/password', requireAdmin, (req, res) => {
   const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(req.params.id));
   if (!u) return res.status(404).json({ error: 'Not found' });
+  if (u.id === req.user.id) return res.status(400).json({ error: 'Use the key icon to change your own password' });
   const pw = randomPassword();
-  db.prepare('UPDATE users SET password_hash = ?, must_change = 1 WHERE id = ?').run(hashPassword(pw), u.id);
-  res.json({ username: u.username, password: pw });
+  db.prepare('UPDATE users SET password_hash = ?, must_change = 1, temp_expires = ?, token_version = token_version + 1 WHERE id = ?')
+    .run(hashPassword(pw), tempExpiry(), u.id);
+  res.json({ username: u.username, password: pw, expires_hours: TEMP_PW_HOURS });
 });
 
 // Removing a system user deletes standalone accounts; member accounts are only demoted to "member".
@@ -495,7 +610,7 @@ app.delete('/api/users/:id', requireAdmin, (req, res) => {
   if (!u) return res.status(404).json({ error: 'Not found' });
   if (u.id === req.user.id) return res.status(400).json({ error: 'You cannot remove yourself' });
   if (u.role === 'admin' && adminCount() <= 1) return res.status(400).json({ error: 'Cannot remove the last admin' });
-  if (u.member_id) db.prepare("UPDATE users SET role = 'member' WHERE id = ?").run(u.id);
+  if (u.member_id) db.prepare("UPDATE users SET role = 'member', token_version = token_version + 1 WHERE id = ?").run(u.id);
   else db.prepare('DELETE FROM users WHERE id = ?').run(u.id);
   res.json({ ok: true });
 });
@@ -507,13 +622,16 @@ app.get('/api/backup', requireAdmin, (req, res) => {
   res.send(createBackup());
 });
 
-app.post('/api/restore', requireAdmin, express.raw({ type: 'application/octet-stream', limit: '500mb' }), (req, res) => {
+app.post('/api/restore', requireAdmin, express.raw({ type: 'application/octet-stream', limit: '300mb' }), (req, res) => {
   if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'No file uploaded' });
   try {
     const r = restoreBackup(req.body);
     clearSession(res);
     res.json(r);
-  } catch (e) { res.status(400).json({ error: e.message }); }
+  } catch (e) {
+    console.error('[restore]', e);
+    res.status(400).json({ error: e.userMessage || 'Restore failed – the file is not a valid AISARC backup. Nothing was changed.' });
+  }
 });
 
 registerEvents(app);
@@ -524,8 +642,18 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 // Images cache for a day (URLs are versioned); HTML/JS/CSS revalidate (ETag) so deploys show up immediately.
 app.use(express.static(PUBLIC, {
   index: false,
+  dotfiles: 'deny',
   setHeaders: (res, file) => res.set('Cache-Control', /\.(png|jpe?g|webp|svg)$/.test(file) ? 'public, max-age=86400' : 'no-cache'),
 }));
 app.get(/.*/, (req, res) => res.set('Cache-Control', 'no-cache').sendFile(path.join(PUBLIC, 'index.html')));
+
+// Never send internal error details or stack traces to clients.
+app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+  const status = err.status || err.statusCode || 500;
+  if (status >= 500) console.error(err);
+  if (res.headersSent) return;
+  const msg = status === 413 ? 'Request too large' : status === 400 ? 'Bad request' : status < 500 ? 'Request rejected' : 'Server error';
+  res.status(status).json({ error: msg });
+});
 
 app.listen(PORT, () => console.log(`AISARC membership running on http://localhost:${PORT}`));

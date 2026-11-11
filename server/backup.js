@@ -21,16 +21,21 @@ export function createBackup() {
   return zlib.gzipSync(Buffer.from(JSON.stringify(doc)));
 }
 
+const userErr = (msg) => Object.assign(new Error(msg), { userMessage: msg });
+const MAX_UNZIPPED = 1024 * 1024 * 1024; // 1 GB cap protects against "zip bomb" files
+
 function parseBackup(buf) {
   let json;
   try {
-    json = JSON.parse((buf[0] === 0x1f && buf[1] === 0x8b ? zlib.gunzipSync(buf) : buf).toString('utf8'));
+    const raw = buf[0] === 0x1f && buf[1] === 0x8b ? zlib.gunzipSync(buf, { maxOutputLength: MAX_UNZIPPED }) : buf;
+    json = JSON.parse(raw.toString('utf8'));
   } catch {
-    throw new Error('Not a valid AISARC backup file');
+    throw userErr('Not a valid AISARC backup file');
   }
-  if (json?.format !== FORMAT || typeof json.tables !== 'object') throw new Error('Not a valid AISARC backup file');
-  for (const t of ['members', 'users']) if (!Array.isArray(json.tables[t])) throw new Error(`Backup is missing table "${t}"`);
-  if (!json.tables.users.some((u) => u.role === 'admin')) throw new Error('Backup has no admin account – refusing to restore');
+  if (json?.format !== FORMAT || typeof json.tables !== 'object' || json.tables === null) throw userErr('Not a valid AISARC backup file');
+  for (const t of ['members', 'users']) if (!Array.isArray(json.tables[t])) throw userErr(`Backup is missing table "${t}"`);
+  if (!json.tables.users.some((u) => u?.role === 'admin')) throw userErr('Backup has no admin account – refusing to restore');
+  if (json.files != null && typeof json.files !== 'object') throw userErr('Not a valid AISARC backup file');
   return json;
 }
 
@@ -63,15 +68,17 @@ export function restoreBackup(buf) {
     db.exec('COMMIT');
   } catch (e) {
     db.exec('ROLLBACK');
-    throw new Error(`Restore failed, nothing was changed: ${e.message}`);
+    console.error('[restore]', e);
+    throw userErr('Restore failed – the backup data is invalid. Nothing was changed.');
   } finally {
     db.exec('PRAGMA foreign_keys = ON');
   }
 
-  // Replace uploaded files with the ones from the backup.
+  // Replace uploaded files with the ones from the backup (only names this app itself creates).
   const keep = new Set();
   for (const [name, b64] of Object.entries(doc.files || {})) {
     const safe = path.basename(name);
+    if (!/^(\d+-(photo|cert_file)|assoc-qr)-[0-9a-f]+\.(jpg|png|webp|pdf)$/.test(safe) || typeof b64 !== 'string') continue;
     fs.writeFileSync(path.join(UPLOAD_DIR, safe), Buffer.from(b64, 'base64'));
     keep.add(safe);
   }

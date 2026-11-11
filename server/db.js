@@ -48,6 +48,15 @@ db.exec(`
   );
 `);
 
+// Column additions for databases created by earlier versions.
+for (const [table, col, def] of [
+  ['users', 'token_version', 'INTEGER NOT NULL DEFAULT 0'],
+  ['users', 'email_verified', 'INTEGER NOT NULL DEFAULT 0'],
+  ['users', 'temp_expires', 'TEXT'],
+]) {
+  if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+}
+
 const now = () => new Date().toISOString();
 
 // ---------- association settings ----------

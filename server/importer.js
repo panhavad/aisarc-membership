@@ -1,7 +1,6 @@
 import * as XLSX from 'xlsx';
 import { FIELDS } from '../public/fields.js';
 import { db, findMemberByEmail, saveMember, toNumberText } from './db.js';
-import { hashPassword } from './auth.js';
 
 const clean = (v) => String(v ?? '').replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
 
@@ -26,7 +25,7 @@ export function importWorkbook(buffer, { overwrite = false } = {}) {
   const wb = XLSX.read(buffer, { type: 'buffer', raw: false });
   const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
   const result = { inserted: 0, updated: 0, skipped: 0 };
-  const insertUser = db.prepare('INSERT OR IGNORE INTO users (username, password_hash, role, member_id, must_change) VALUES (?,?,?,?,1)');
+  const insertUser = db.prepare('INSERT OR IGNORE INTO users (username, password_hash, role, member_id, must_change) VALUES (?,?,?,?,0)');
 
   db.exec('BEGIN');
   try {
@@ -45,9 +44,8 @@ export function importWorkbook(buffer, { overwrite = false } = {}) {
       const id = saveMember(existing?.id, rec);
       if (existing) { result.updated++; continue; }
       result.inserted++;
-      // Initial password = phone number digits; member must change it after first login.
-      const pw = (rec.phone || rec.telegram || '').replace(/\D/g, '');
-      if (rec.email) insertUser.run(rec.email, pw.length >= 6 ? hashPassword(pw) : null, 'member', id);
+      // No password: members sign in with Google (same email) or get a temporary password from an admin.
+      if (rec.email) insertUser.run(rec.email, null, 'member', id);
     }
     db.exec('COMMIT');
   } catch (e) {

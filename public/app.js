@@ -36,6 +36,7 @@ async function api(url, opts = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && state.user && !url.startsWith('/api/login')) { state.user = null; go('/login'); }
+  if (res.status === 403 && data.must_change && state.user) { state.user.must_change = true; go('/password'); }
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;
 }
@@ -70,20 +71,36 @@ setInterval(tickClocks, 1000);
 
 function fileUrl(v) {
   if (!v) return '';
+  v = String(v);
   if (v.startsWith('file:')) return `/api/files/${encodeURIComponent(v.slice(5))}`;
-  const drive = v.match(/drive\.google\.com\/.*[?&]id=([\w-]+)/) || v.match(/drive\.google\.com\/file\/d\/([\w-]+)/);
+  const drive = v.match(/^https:\/\/drive\.google\.com\/.*[?&]id=([\w-]+)/) || v.match(/^https:\/\/drive\.google\.com\/file\/d\/([\w-]+)/);
   if (drive) return `https://drive.google.com/thumbnail?id=${drive[1]}&sz=w600`;
-  return /^https?:\/\//.test(v) ? v : '';
+  return /^https:\/\/[^\s"'<>]+$/i.test(v) ? v : ''; // only https links, never javascript:/data:
 }
-const fileLink = (v) => (v?.startsWith('file:') ? fileUrl(v) : v);
+// Links for "View": uploaded files, Drive or other https links only.
+const fileLink = (v) => {
+  if (!v) return '';
+  v = String(v);
+  if (v.startsWith('file:')) return fileUrl(v);
+  return /^https:\/\/[^\s"'<>]+$/i.test(v) ? v : '';
+};
 
 const initials = (m) => (m?.name_en || m?.name_kh || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+// Broken images: show the member's initials (data-i) or remove the image. One global listener
+// instead of inline onerror="" handlers, so the Content-Security-Policy can forbid inline script.
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement)) return;
+  if (img.dataset.i !== undefined) img.parentNode.textContent = img.dataset.i;
+  else if (img.dataset.rm !== undefined) img.remove();
+}, true);
 
 function photoHtml(m) {
   const url = fileUrl(m?.photo);
   const ini = esc(initials(m));
   return url
-    ? `<img src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-i="${ini}" onerror="this.parentNode.textContent=this.dataset.i">`
+    ? `<img src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-i="${ini}">`
     : ini;
 }
 
@@ -241,11 +258,11 @@ function fieldHtml(f, m, role) {
   if (f.type === 'photo' || f.type === 'file') {
     const url = fileUrl(v);
     const thumb = f.type === 'photo'
-      ? (url ? `<img src="${esc(url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : 'No photo')
+      ? (url ? `<img src="${esc(url)}" alt="" referrerpolicy="no-referrer" data-rm>` : 'No photo')
       : (v ? '📄' : 'None');
     input = `<div class="upload"><div class="thumb">${thumb}</div><div class="actions">
       ${editable ? `<label class="btn sm light">Upload<input type="file" data-upload="${f.key}" accept="${f.accept || 'image/*'}"></label>` : ''}
-      ${v ? `<a class="btn sm light" href="${esc(fileLink(v))}" target="_blank" rel="noopener">View</a>` : ''}</div></div>`;
+      ${fileLink(v) ? `<a class="btn sm light" href="${esc(fileLink(v))}" target="_blank" rel="noopener noreferrer">View</a>` : ''}</div></div>`;
     return `<div class="field">${lbl}${input}</div>`;
   }
   if (f.type === 'datetime') {
@@ -620,7 +637,7 @@ async function viewAdminEdit(id) {
     if (!confirm('Generate a new temporary password for this member?')) return;
     try {
       const r = await api(`/api/members/${id}/password`, { body: {} });
-      const d = modal(`<h3 style="margin-top:0">Temporary password</h3><p>Share with the member. They must change it after signing in.</p>
+      const d = modal(`<h3 style="margin-top:0">Temporary password</h3><p>Share it privately with the member. It expires in 72 hours and must be changed at first sign-in.</p>
         <div class="field"><span class="lbl">Username</span><div class="mono">${esc(r.username)}</div></div>
         <div class="field"><span class="lbl">Password</span><div class="mono">${esc(r.password)}</div></div>
         <button class="btn block" data-close>Done</button>`);
@@ -701,7 +718,7 @@ async function viewSystem() {
       if (!confirm(`Generate a new temporary password for ${name}?`)) return;
       try {
         const r = await api(`/api/users/${row.dataset.id}/password`, { body: {} });
-        const d = modal(`<h3 style="margin-top:0">Temporary password</h3>
+        const d = modal(`<h3 style="margin-top:0">Temporary password</h3><p>Share it privately. It expires in 72 hours and must be changed at first sign-in.</p>
           <div class="field"><span class="lbl">Username</span><div class="mono">${esc(r.username)}</div></div>
           <div class="field"><span class="lbl">Password</span><div class="mono">${esc(r.password)}</div></div>
           <button class="btn block" data-close>Done</button>`);
@@ -876,7 +893,7 @@ function viewLogin() {
       <div id="gwrap" hidden><div class="divider">or</div><div id="gbtn"></div></div>
       <div class="divider">New member? · សមាជិកថ្មី?</div>
       <a class="btn block light" href="#/register">Register · ចុះឈ្មោះ</a>
-      <p class="hint">Existing members: your first password is your phone number. Forgot it? Contact the AISARC admin.</p>
+      <p class="hint">Members: sign in with Google using the email you registered with. Forgot your password? Contact the AISARC admin.</p>
     </form></div>`;
   $('#lf').addEventListener('submit', async (e) => {
     e.preventDefault();

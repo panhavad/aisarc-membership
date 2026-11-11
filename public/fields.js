@@ -83,7 +83,7 @@ export const FIELDS = [
   { key: 'cert_file', col: 24, section: 'reg', kh: 'វិញ្ញាបនបត្រសមាជិក គណៈគិលានុបដ្ឋាក', en: 'Council membership certificate', type: 'file', accept: 'image/*,application/pdf' },
   { key: 'photo', col: 25, section: 'reg', kh: 'រូបថត 4x6', en: 'Photo 4x6', type: 'photo' },
 
-  { key: 'email', col: 1, section: 'membership', kh: 'អ៊ីម៉ែល (ចូលប្រើ Google)', en: 'Email (Google sign-in)', type: 'email' },
+  { key: 'email', col: 1, section: 'membership', kh: 'អ៊ីម៉ែល (ចូលប្រើ Google)', en: 'Email (Google sign-in)', edit: 'admin', type: 'email' },
   { key: 'joined_at', col: 0, section: 'membership', kh: 'ថ្ងៃចូលជាសមាជិក', en: 'Member since', edit: 'admin', type: 'datetime' },
   { key: 'member_no', section: 'membership', kh: 'លេខសមាជិក', en: 'Membership no.', edit: 'admin' },
   { key: 'status', section: 'membership', kh: 'ស្ថានភាព', en: 'Status', edit: 'admin', type: 'select', options: STATUSES.map((s) => s.key) },

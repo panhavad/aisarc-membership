@@ -10,26 +10,41 @@ services:
         required: false
     environment:
       DATA_DIR: /data
+      # The app never needs the git credentials; keep them out of its environment.
+      GIT_TOKEN: ""
+      GIT_USERNAME: ""
+      GIT_REPO_URL: ""
     ports:
-      - "${APP_PORT:-8080}:3000"
+      # Set APP_BIND=127.0.0.1 when a reverse proxy runs on the same host, so the app is not reachable directly.
+      - "${APP_BIND:-0.0.0.0}:${APP_PORT:-8080}:3000"
     volumes:
       - aisarc-data:/data
+    # Hardening: read-only filesystem except /data and /tmp, no extra Linux privileges.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
 
   # Watches the git remote and rebuilds/restarts "app" whenever new commits are pushed.
+  # It only receives the git settings, never the app's secrets.
   updater:
     build: ./updater
     restart: unless-stopped
-    env_file:
-      - path: .env
-        required: false
     environment:
       PROJECT: aisarc
       GIT_BRANCH: ${GIT_BRANCH:-main}
       POLL_INTERVAL: ${POLL_INTERVAL:-60}
+      GIT_REPO_URL: ${GIT_REPO_URL:-}
+      GIT_USERNAME: ${GIT_USERNAME:-}
+      GIT_TOKEN: ${GIT_TOKEN:-}
     volumes:
       - .:/repo
       - /var/run/docker.sock:/var/run/docker.sock
       - ${SSH_KEY_DIR:-./updater/ssh}:/root/.ssh:ro
+    security_opt:
+      - no-new-privileges:true
 
   # Optional HTTPS (required for Google sign-in on a real domain): docker compose --profile https up -d
   caddy:

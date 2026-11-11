@@ -4,3 +4,7 @@ data/
 *.xlsx
 updater/ssh/*
 !updater/ssh/.gitkeep
+.env.*
+!.env.example
+*.db
+*.json.gz
