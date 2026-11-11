@@ -543,7 +543,7 @@ async function viewAdminEdit(id) {
       ${s !== 'ACTIVE' && s !== 'REVIEW' ? '<button class="btn sm" id="activate" style="background:var(--ok)">Activate</button>' : ''}
       ${s !== 'INACTIVE' ? '<button class="btn sm light" id="deactivate">Deactivate</button>' : ''}
       <button class="btn sm light" id="reset">${ICON.key} Reset password</button>` : '';
-  app.innerHTML = `${header(isNew ? 'New member' : esc(m.name_kh || m.name_en || 'Member'), isNew ? 'Add a member' : `${esc(m.name_en || '')} · ${esc(m.member_no || 'New applicant')}`, back)}
+  app.innerHTML = `${header(isNew ? 'New member' : esc(m.member_no || 'New applicant'), '', back)}
     <div class="admin-edit">
       <div class="side">
         ${isNew ? '' : passCard(m) + staffNotice(m)}
