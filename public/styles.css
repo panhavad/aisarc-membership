@@ -319,3 +319,19 @@ details.esec:not([open]) > summary .esec-title::after { transform: rotate(-90deg
 .chip.c-live .live-dot, .esec-title .live-dot { margin-right: 0; }
 .empty.small { padding: 12px 0; font-size: 13px; }
 .event-detail dd .btn svg { width: 16px; height: 16px; }
+/* ---------- privacy & audit ---------- */
+.ver a { color: inherit; }
+.privacy h3 { font-size: 15px; margin: 18px 0 4px; }
+.privacy p { margin: 0 0 6px; font-size: 14px; line-height: 1.7; }
+.privacy p.en { color: #475569; font-size: 13px; }
+.audit { display: grid; gap: 6px; }
+.arow { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+.arow.warn { border-color: #fca5a5; background: #fff7f7; }
+.arow .a1 { display: flex; justify-content: space-between; gap: 8px; }
+.arow .a1 span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.arow .a2 { color: var(--muted); font-size: 12px; word-break: break-word; }
+details.history { margin-top: 16px; }
+details.history summary { cursor: pointer; }
+details.history summary small { color: var(--muted); font-weight: 400; }
+details.history .audit { margin-top: 10px; max-height: 360px; overflow: auto; }
+.check a { color: var(--blue-2); }

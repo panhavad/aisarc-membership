@@ -8,3 +8,6 @@ updater
 *.json.gz
 README.md
 docs
+test
+*.aisarc-enc
+PRIVACY.md

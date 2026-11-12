@@ -3,6 +3,7 @@ import {
   SUBMIT_REQUIRED, missingForReview,
 } from '/fields.js';
 import { startTour, maybeAutoTour, tourKind } from '/tour.js';
+import { PRIVACY, PRIVACY_VERSION } from '/privacy.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const app = $('#app');
@@ -90,7 +91,7 @@ const fileLink = (v) => {
 const initials = (m) => (m?.name_en || m?.name_kh || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
 // Broken images: show the member's initials (data-i) or remove the image. One global listener
-// instead of inline onerror="" handlers, so the Content-Security-Policy can forbid inline script.
+// instead of inline HTML event-handler attributes, so the Content-Security-Policy can forbid inline script.
 document.addEventListener('error', (e) => {
   const img = e.target;
   if (!(img instanceof HTMLImageElement)) return;
@@ -251,6 +252,7 @@ function viewPass() {
     ${passCard(m)}
     <div class="meta-row"><span>Phone <b>${esc(m.phone || '—')}</b></span><span>Valid until <b>${m.expires_at ? esc(fmtDate(m.expires_at)) : '—'}</b></span></div>
     ${memberNotice(m)}
+    ${privacyBanner()}
     <div class="card" style="margin-top:16px">
       <h2>${esc(m.name_kh || m.name_en)}</h2>
       <div style="color:var(--muted);font-size:14px">${esc(m.workplace || '')}${m.department ? ` · ${esc(m.department)}` : ''}</div>
@@ -340,14 +342,17 @@ function viewProfile(showMissing = false) {
   app.className = '';
   app.innerHTML = `${header('My Profile', 'ព័ត៌មានផ្ទាល់ខ្លួន · Edit your information')}
     ${m.status === 'ACTIVE' ? '' : memberNotice(m)}
+    ${privacyBanner()}
     ${applicant ? `<section class="card progress-card" id="progress"></section>` : ''}
     <form id="pf" novalidate>${formHtml(m, 'member', need)}
       <div class="sticky-save">${applicant
         ? `<div class="actions"><button class="btn light" type="submit" style="flex:1">រក្សាទុក · Save</button>
            <button class="btn" type="button" id="submitReview" style="flex:1.6">ដាក់ស្នើ · Submit</button></div>`
         : '<button class="btn block" type="submit">Save changes · រក្សាទុក</button>'}</div>
-    </form>`;
+    </form>
+    ${myDataCard(m)}`;
   const form = $('#pf');
+  bindMyData(() => viewProfile());
   // The status card already explains things here; buttons for applicants live in the bottom bar.
   app.querySelectorAll(`.notice a[href="#/profile"]${applicant ? ', .notice [data-submit]' : ''}`).forEach((a) => a.remove());
   bindSubmit(app);
@@ -429,6 +434,79 @@ function viewProfile(showMissing = false) {
       toast('Submitted for review ✓ · បានដាក់ស្នើ');
       go('/pass');
     } catch (err) { toast(err.message, true); btn.disabled = false; }
+  });
+}
+
+// ---------- privacy ----------
+const needsPrivacy = () => state.member && state.member.privacy_version !== PRIVACY_VERSION;
+
+function privacyBanner() {
+  if (!needsPrivacy()) return '';
+  return `<div class="notice orange" id="privacy-banner"><h3>ឯកជនភាព · Privacy notice</h3>
+    <p>សូមអានពីរបៀបដែលសមាគមប្រើប្រាស់ និង ការពារព័ត៌មានរបស់អ្នក។ Please read how the association uses and protects your personal data.</p>
+    <div class="actions"><a class="btn sm light" href="#/privacy">Read · អាន</a><button class="btn sm" data-accept-privacy>I accept · ខ្ញុំយល់ព្រម</button></div></div>`;
+}
+
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-accept-privacy]');
+  if (!b) return;
+  b.disabled = true;
+  try {
+    state.member = (await api('/api/me/privacy', { body: { accept: true } })).member;
+    toast('Thank you ✓ · អរគុណ');
+    route();
+  } catch (err) { toast(err.message, true); b.disabled = false; }
+});
+
+function viewPrivacy() {
+  app.className = '';
+  const signedIn = !!state.user;
+  app.innerHTML = `${signedIn ? header('Privacy', 'ឯកជនភាព') : `<header class="top"><a class="icon-btn" href="#/login" aria-label="Back">${ICON.back}</a>
+      <div style="flex:1"><h1>Privacy</h1><div class="sub">ឯកជនភាព</div></div></header>`}
+    <section class="card privacy">
+      <h2>សេចក្តីជូនដំណឹងអំពីឯកជនភាព <small>Privacy notice · version ${esc(PRIVACY_VERSION)}</small></h2>
+      ${PRIVACY.map((s, i) => `<h3>${i + 1}. ${esc(s.kh)} · ${esc(s.en)}</h3><p class="kh">${esc(s.khBody)}</p><p class="en">${esc(s.enBody)}</p>`).join('')}
+    </section>
+    ${signedIn && needsPrivacy() ? '<button class="btn block" data-accept-privacy>I accept · ខ្ញុំយល់ព្រម</button>' : ''}
+    ${signedIn && state.member ? '<a class="btn block light" href="#/profile" style="margin-top:10px">My data &amp; privacy · ទិន្នន័យរបស់ខ្ញុំ</a>' : ''}`;
+}
+
+// "My data & privacy" card on the profile: consent record, download, deletion request.
+function myDataCard(m) {
+  const consent = m.consent_at ? `${esc(m.consent === CONSENT_YES ? 'Agreed' : 'Not agreed')} · ${esc(fmtDateTime(m.consent_at))}` : esc(m.consent || '—');
+  const accepted = m.privacy_accepted_at ? `version ${esc(m.privacy_version)} · ${esc(fmtDateTime(m.privacy_accepted_at))}` : 'not yet accepted';
+  return `<section class="card" id="mydata"><h2>ទិន្នន័យរបស់ខ្ញុំ <small>My data &amp; privacy</small></h2>
+    <dl class="kv"><dt>Declaration</dt><dd>${consent}</dd><dt>Privacy notice</dt><dd>${accepted}</dd></dl>
+    <div class="actions" style="margin-top:12px">
+      <a class="btn sm light" href="#/privacy">Privacy notice · ឯកជនភាព</a>
+      <button class="btn sm light" type="button" id="dl-mydata">⬇ Download my data</button>
+    </div>
+    ${m.deletion_requested_at
+      ? `<div class="notice red" style="margin-bottom:0"><b>Deletion requested</b> on ${esc(fmtDateTime(m.deletion_requested_at))}. The association will delete your data within 30 days.
+         <div class="actions"><button class="btn sm light" type="button" id="cancel-del">Cancel request</button></div></div>`
+      : `<details class="danger"><summary>Request deletion of my data · ស្នើសុំលុបទិន្នន័យ</summary>
+         <p>Your membership and all your personal data will be deleted by the association within 30 days. This cannot be undone.</p>
+         <textarea id="del-reason" rows="2" placeholder="Reason (optional)"></textarea>
+         <div class="actions" style="margin-top:8px"><button class="btn danger" type="button" id="req-del">Request deletion</button></div></details>`}
+  </section>`;
+}
+
+function bindMyData(rerender) {
+  $('#dl-mydata')?.addEventListener('click', async () => {
+    try {
+      const r = await fetch('/api/me/export', { credentials: 'same-origin' });
+      if (!r.ok) throw new Error('Download failed');
+      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await r.blob()), download: 'my-aisarc-data.json' });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (e) { toast(e.message, true); }
+  });
+  $('#req-del')?.addEventListener('click', async () => {
+    if (!confirm('Request deletion of your membership and all your data?\nស្នើសុំលុបសមាជិកភាព និង ទិន្នន័យទាំងអស់?')) return;
+    try { state.member = (await api('/api/me/deletion', { body: { reason: $('#del-reason').value } })).member; toast('Request sent'); rerender(); } catch (e) { toast(e.message, true); }
+  });
+  $('#cancel-del')?.addEventListener('click', async () => {
+    try { state.member = (await api('/api/me/deletion', { method: 'DELETE', body: {} })).member; toast('Request cancelled'); rerender(); } catch (e) { toast(e.message, true); }
   });
 }
 
@@ -613,13 +691,45 @@ async function viewAdmin() {
       shown.forEach((m) => (all ? selected.delete(m.id) : selected.add(m.id)));
       render();
     }
-    if (act === 'export-all') location.href = '/api/export.xlsx';
-    if (act === 'export-sel' && selected.size) location.href = `/api/export.xlsx?ids=${[...selected].join(',')}`;
+    const exportWarn = 'The Excel file contains personal data. Only keep it as long as needed, store it securely and never share it publicly. The export is recorded in the audit log. Continue?';
+    if (act === 'export-all' && confirm(exportWarn)) location.href = '/api/export.xlsx';
+    if (act === 'export-sel' && selected.size && confirm(exportWarn)) location.href = `/api/export.xlsx?ids=${[...selected].join(',')}`;
   });
+}
+
+// Audit log entries (actions on personal data) in readable form.
+const AUDIT_LABEL = {
+  'login': 'Signed in', 'login.google': 'Signed in with Google', 'login.failed': 'Failed sign-in', 'logout': 'Signed out',
+  'register': 'Registered', 'member.view': 'Viewed record', 'member.self_update': 'Member edited own data', 'member.update': 'Staff edited record',
+  'member.create': 'Record created', 'member.delete': 'Record deleted', 'member.submit': 'Submitted for review', 'member.approve': 'Approved',
+  'member.reject': 'Rejected', 'member.activate': 'Activated', 'member.deactivate': 'Deactivated', 'consent.change': 'Consent changed',
+  'privacy.accept': 'Accepted privacy notice', 'data.export_own': 'Downloaded own data', 'deletion.request': 'Requested deletion',
+  'deletion.cancel': 'Cancelled deletion request', 'members.export': 'Excel export', 'backup.download': 'Backup downloaded',
+  'backup.restore': 'Backup restored', 'role.change': 'Role changed', 'password.reset': 'Password reset by admin',
+  'password.change': 'Password changed', 'user.create': 'System user created', 'user.delete': 'System user deleted',
+  'file.upload': 'File uploaded', 'file.view': 'Certificate viewed', 'association.update': 'Association info edited',
+  'event.create': 'Event created', 'event.update': 'Event edited', 'event.delete': 'Event deleted', 'retention.purge': 'Retention clean-up',
+};
+function auditRow(r) {
+  let detail = '';
+  try {
+    const d = r.detail ? JSON.parse(r.detail) : null;
+    if (d && typeof d === 'object') detail = Object.entries(d).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ');
+    else detail = r.detail || '';
+  } catch { detail = r.detail || ''; }
+  return `<div class="arow ${r.action === 'login.failed' ? 'warn' : ''}">
+    <div class="a1"><b>${esc(AUDIT_LABEL[r.action] || r.action)}</b><span>${esc(fmtDateTime(r.at))}</span></div>
+    <div class="a2">${esc(r.actor || '—')}${r.target ? ` → ${esc(r.target)}` : ''}${r.ip ? ` · ${esc(r.ip)}` : ''}</div>
+    ${detail ? `<div class="a2">${esc(detail)}</div>` : ''}</div>`;
 }
 
 // Status info for moderators/admins on the member page.
 function staffNotice(m) {
+  const del = m.deletion_requested_at
+    ? `<div class="notice red"><h3>⚠ Deletion requested</h3><p>The member asked for their data to be deleted on <b>${esc(fmtDateTime(m.deletion_requested_at))}</b>${m.deletion_reason ? ` – “${esc(m.deletion_reason)}”` : ''}. Please delete the record (Danger zone) within 30 days.</p></div>` : '';
+  return del + statusNotice(m);
+}
+function statusNotice(m) {
   const s = statusOf(m);
   const by = m.review?.by ? ` by <b>${esc(m.review.by)}</b> · ${esc(fmtDateTime(m.review.at))}` : '';
   if (s.key === 'REVIEW') return `<div class="notice orange"><h3>Waiting for review</h3><p>${m.applied_at ? `Submitted ${esc(fmtDateTime(m.applied_at))}. ` : ''}Check the information and documents, then approve or reject.</p></div>`;
@@ -684,13 +794,22 @@ async function viewAdminEdit(id) {
         <form id="af" novalidate>${formHtml(m, role)}
           ${admin ? `<div class="sticky-save"><button class="btn block" type="submit">${isNew ? 'Create member' : 'Save changes'}</button></div>` : ''}
         </form>
-        ${admin && !isNew ? `<details class="danger"><summary>Danger zone · លុបសមាជិក</summary>
+        ${admin && !isNew ? `<details class="card history" id="history"><summary><b>Record history</b> <small>Who viewed or changed this record</small></summary><div id="histbody"><div class="spin"></div></div></details>
+        <details class="danger"><summary>Danger zone · លុបសមាជិក</summary>
           <p>Deleting removes this member, their login and uploaded files permanently. To confirm, type <b>${esc(m.member_no || m.email)}</b> below.</p>
           <div class="actions"><input id="delconfirm" autocomplete="off" style="flex:1;min-width:160px"><button class="btn danger" id="del" disabled>Delete permanently</button></div>
         </details>` : ''}
       </div>
     </div>`;
   tickClocks();
+  $('#history')?.addEventListener('toggle', async (ev) => {
+    if (!ev.target.open || ev.target.dataset.loaded) return;
+    ev.target.dataset.loaded = '1';
+    try {
+      const rows = await api(`/api/members/${id}/audit`);
+      $('#histbody').innerHTML = rows.length ? `<div class="audit">${rows.map(auditRow).join('')}</div>` : '<p class="hint">No entries yet</p>';
+    } catch (e) { $('#histbody').textContent = e.message; }
+  });
   const reload = () => viewAdminEdit(id);
   if (isNew) app.querySelectorAll('[data-upload]').forEach((el) => el.closest('label').replaceWith('Save first, then upload'));
   const form = $('#af');
@@ -758,16 +877,66 @@ async function viewSystem() {
       <button class="btn block" type="submit">Create user</button>
       <p class="hint" style="text-align:left">To give a <b>member</b> moderator/admin rights, open them in Members → Account → Role.</p>
     </form>
+    <section class="card" id="privreq"><h2>សំណើឯកជនភាព <small>Privacy requests</small></h2><div id="reqbody"><div class="spin"></div></div></section>
     <section class="card"><h2>បម្រុងទុក និង ស្ដារ <small>Backup &amp; restore</small></h2>
-      <p style="font-size:14px;margin-top:0">The backup contains the whole database (members, logins, events, association info) and all uploaded photos/files.</p>
-      <div class="actions"><a class="btn" href="/api/backup">⬇ Download backup</a></div>
+      <p style="font-size:14px;margin-top:0">The backup contains the whole database (members, logins, events, association info) and all uploaded photos/files.
+        It contains personal data – <b>set a passphrase</b> so the file is encrypted, and store it safely.</p>
+      <label class="field"><span class="lbl">Passphrase (recommended)<small>At least 10 characters. Without it the backup cannot be restored – keep it safe.</small></span>
+        <input type="password" id="bpass" autocomplete="new-password" placeholder="Leave empty for an unencrypted backup"></label>
+      <div class="actions"><button class="btn" type="button" id="dl-backup">⬇ Download backup</button></div>
       <details class="danger"><summary>Restore from a backup file</summary>
         <p>Restoring <b>replaces all current data</b> with the backup and signs everyone out. A safety copy of the current data is saved on the server first.</p>
-        <div class="actions"><input type="file" id="rfile" accept=".gz,.json,application/gzip" style="flex:1;min-width:200px"><button class="btn danger" id="restore" disabled>Restore</button></div>
+        <input type="password" id="rpass" autocomplete="off" placeholder="Passphrase (if the backup is encrypted)" style="margin-bottom:8px">
+        <div class="actions"><input type="file" id="rfile" accept=".gz,.json,.aisarc-enc,application/gzip,application/octet-stream" style="flex:1;min-width:200px"><button class="btn danger" id="restore" disabled>Restore</button></div>
       </details>
+    </section>
+    <section class="card"><h2>កំណត់ត្រាសកម្មភាព <small>Audit log – who did what with personal data</small></h2>
+      <div class="search" style="margin-bottom:8px">${ICON.search}<input id="aq" type="search" placeholder="Search action, user, member:12…" autocomplete="off"></div>
+      <div id="audit" class="audit"><div class="spin"></div></div>
+      <button class="btn sm light" type="button" id="amore" hidden>Load more</button>
     </section>
     <a class="btn block light" href="#/association/edit">Edit association info</a>`;
 
+  // Privacy requests (deletion) waiting for action.
+  api('/api/privacy/requests').then((rows) => {
+    $('#reqbody').innerHTML = rows.length ? rows.map((r) => `<a class="mrow" href="#/admin/m/${r.id}" style="margin-bottom:8px">
+        <div class="info"><div class="n1">${esc(r.name_kh)} · ${esc(r.name_en)}</div>
+        <div class="n2">Deletion requested ${esc(fmtDateTime(r.requested_at))} · due ${esc(fmtDate(new Date(new Date(r.requested_at).getTime() + 30 * 864e5).toISOString()))}</div>
+        ${r.reason ? `<div class="n2">“${esc(r.reason)}”</div>` : ''}</div><span class="chip c-red">DELETE</span></a>`).join('')
+      : '<p class="hint" style="text-align:left;margin:0">No open requests ✓</p>';
+  }).catch((e) => toast(e.message, true));
+
+  // Audit log with search and paging.
+  let lastId = null;
+  let atimer;
+  const loadAudit = async (append = false) => {
+    try {
+      const q = $('#aq').value.trim();
+      const rows = await api(`/api/audit?limit=50&q=${encodeURIComponent(q)}${append && lastId ? `&before=${lastId}` : ''}`);
+      const html = rows.map(auditRow).join('');
+      $('#audit').innerHTML = append ? $('#audit').innerHTML + html : (html || '<p class="hint">No entries</p>');
+      lastId = rows.length ? rows[rows.length - 1].id : lastId;
+      $('#amore').hidden = rows.length < 50;
+    } catch (e) { toast(e.message, true); }
+  };
+  loadAudit();
+  $('#aq').addEventListener('input', () => { clearTimeout(atimer); atimer = setTimeout(() => { lastId = null; loadAudit(); }, 250); });
+  $('#amore').addEventListener('click', () => loadAudit(true));
+
+  $('#dl-backup').addEventListener('click', async () => {
+    const passphrase = $('#bpass').value;
+    if (passphrase && passphrase.length < 10) return toast('Passphrase must be at least 10 characters', true);
+    if (!passphrase && !confirm('Download an UNENCRYPTED backup? Anyone who gets the file can read all member data.')) return;
+    try {
+      const r = await fetch('/api/backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ passphrase }), credentials: 'same-origin' });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Backup failed');
+      const name = /filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '')?.[1] || 'aisarc-backup';
+      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await r.blob()), download: name });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+      toast('Backup downloaded ✓');
+    } catch (e) { toast(e.message, true); }
+  });
   const loadUsers = async () => {
     try {
       const users = await api('/api/users');
@@ -828,7 +997,7 @@ async function viewSystem() {
     $('#restore').disabled = true;
     toast('Restoring…');
     try {
-      const res = await fetch('/api/restore', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file, credentials: 'same-origin' });
+      const res = await fetch('/api/restore', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Backup-Passphrase': encodeURIComponent($('#rpass').value) }, body: file, credentials: 'same-origin' });
       const r = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(r.error || 'Restore failed');
       alert(`Restore complete.\nMembers: ${r.counts.members}, users: ${r.counts.users}, events: ${r.counts.events || 0}, files: ${r.counts.files}\n\nPlease sign in again.`);
@@ -931,7 +1100,9 @@ async function viewEvent(id) {
           : e.phase === 'ongoing' ? `<div class="notice green" style="margin-bottom:0">${e.joined ? '<b>✓ You joined this event.</b> ' : ''}This event is happening now.</div>` : ''}
       </section>
       <section class="card"><h2>អ្នកចូលរួម <small>Joined members (${e.joined_count}) · live</small></h2>
-        ${e.participants.length ? `<div class="plist">${e.participants.map((p, i) => `
+        ${!isStaff() ? `<p class="hint" style="text-align:left;margin:0"><b>${e.joined_count}</b> member${e.joined_count === 1 ? ' has' : 's have'} joined${e.joined ? ', including you' : ''}.
+            For privacy, only the organisers can see the list of names.</p>`
+        : e.participants.length ? `<div class="plist">${e.participants.map((p, i) => `
           <div class="prow"><span class="pn">${i + 1}</span><div class="info"><div class="n1">${esc(p.name_kh)} · ${esc(p.name_en)}</div>
           ${p.member_no ? `<div class="n2">${esc(p.member_no)} · ${esc(p.phone || '')}</div>` : ''}</div></div>`).join('')}</div>`
           : '<div class="empty" style="padding:16px 0">No one has joined yet</div>'}
@@ -1047,6 +1218,8 @@ function viewRegister() {
       <label class="field"><span class="lbl">ពាក្យសម្ងាត់ *<small>Password – at least 8 characters</small></span><input name="password" type="password" minlength="8" required autocomplete="new-password"></label>
       <label class="field"><span class="lbl">បញ្ជាក់ពាក្យសម្ងាត់ *<small>Confirm password</small></span><input name="confirm" type="password" required autocomplete="new-password"></label>
       <label class="check"><input type="checkbox" name="consent"><span>${esc(DECLARATION)}</span></label>
+      <label class="check"><input type="checkbox" name="privacy"><span>ខ្ញុំបានអាន និង យល់ព្រមលើ <a href="#/privacy" target="_blank">សេចក្តីជូនដំណឹងអំពីឯកជនភាព</a>។
+        I have read and accept the <a href="#/privacy" target="_blank">privacy notice</a> (how my personal data is used, who can see it and my rights).</span></label>
       <button class="btn block" type="submit">Register · ចុះឈ្មោះ</button>
       <p class="err" id="rerr"></p>
       <p class="hint">After registering, complete your profile. A moderator will review and approve your membership.</p>
@@ -1057,9 +1230,10 @@ function viewRegister() {
     const f = e.target.elements;
     if (f.password.value !== f.confirm.value) return ($('#rerr').textContent = 'Passwords do not match');
     if (!f.consent.checked) return ($('#rerr').textContent = 'Please agree to the declaration · សូមយល់ព្រមលើសេចក្តីប្រកាស');
+    if (!f.privacy.checked) return ($('#rerr').textContent = 'Please accept the privacy notice · សូមយល់ព្រមលើសេចក្តីជូនដំណឹងអំពីឯកជនភាព');
     try {
       const r = await api('/api/register', { body: {
-        name_kh: f.name_kh.value, name_en: f.name_en.value, email: f.email.value, phone: f.phone.value, password: f.password.value, consent: true,
+        name_kh: f.name_kh.value, name_en: f.name_en.value, email: f.email.value, phone: f.phone.value, password: f.password.value, consent: true, privacy: true,
       } });
       state.user = r.user;
       state.member = (await api('/api/me')).member;
@@ -1111,7 +1285,13 @@ async function route() {
   const path = location.hash.slice(1).split('?')[0] || '/';
   if (!state.config) {
     state.config = await api('/api/config').catch(() => ({}));
-    if (state.config.version) $('#ver').textContent = `AISARC Membership · v${state.config.version}`;
+    $('#ver').innerHTML = `AISARC Membership${state.config.version ? ` · v${esc(state.config.version)}` : ''} · <a href="#/privacy">ឯកជនភាព · Privacy</a>`;
+  }
+  // The privacy notice is public: people must be able to read it before registering.
+  if (path === '/privacy') {
+    window.scrollTo(0, 0);
+    if (state.user) setTabs(''); else tabbar.hidden = true;
+    return viewPrivacy();
   }
   if (!state.user && !state.checked) {
     state.checked = true;

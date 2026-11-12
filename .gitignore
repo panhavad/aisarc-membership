@@ -8,3 +8,4 @@ updater/ssh/*
 !.env.example
 *.db
 *.json.gz
+*.aisarc-enc

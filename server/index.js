@@ -16,8 +16,10 @@ import {
   revokeUserSessions, sessionUser, SECURE,
 } from './auth.js';
 import * as XLSX from 'xlsx';
-import { createBackup, restoreBackup } from './backup.js';
+import { createBackup, restoreBackup, purgeOldBackups } from './backup.js';
 import { registerEvents } from './events.js';
+import { audit, listAudit, memberAudit, purgeAudit } from './audit.js';
+import { PRIVACY_VERSION } from '../public/privacy.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const VERSION = JSON.parse(fs.readFileSync(path.join(PUBLIC, '..', 'package.json'), 'utf8')).version;
@@ -67,8 +69,8 @@ app.set('trust proxy', process.env.TRUST_PROXY || 'loopback, linklocal, uniquelo
 const CSP = [
   "default-src 'self'",
   "script-src 'self' https://accounts.google.com/gsi/client",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style",
-  "font-src 'self' https://fonts.gstatic.com",
+  "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
+  "font-src 'self'",
   "img-src 'self' data: blob: https://drive.google.com https://*.googleusercontent.com",
   "connect-src 'self' https://accounts.google.com/gsi/",
   "frame-src https://accounts.google.com/gsi/",
@@ -150,6 +152,11 @@ function validate(rec, existing = {}) {
 // Declaration consent drives the status: "not agree" => INACTIVE; agreeing again => back to review
 // (or back to DRAFT for applicants who were never approved, so they still have to submit).
 function applyConsent(rec, existing = {}) {
+  // Proof of consent: record when it was given or withdrawn, and which privacy notice was current.
+  if (rec.consent && rec.consent !== existing.consent) {
+    rec.consent_at = nowIso();
+    rec.consent_version = PRIVACY_VERSION;
+  }
   if (rec.consent === CONSENT_NO) rec.status = 'INACTIVE';
   else if (rec.consent === CONSENT_YES && existing.consent === CONSENT_NO && existing.status === 'INACTIVE' && !rec.status) {
     if (existing.member_no) {
@@ -185,10 +192,12 @@ function activate(id, by) {
 }
 
 // New applicants start as DRAFT: they must complete their profile and submit it for review.
-function createApplicant({ name_kh = '', name_en = '', email, phone = '' }, passwordHash, emailVerified) {
+function createApplicant({ name_kh = '', name_en = '', email, phone = '' }, passwordHash, emailVerified, privacyAccepted = false) {
+  const now = nowIso();
   const id = saveMember(null, {
     name_kh, name_en: name_en.toUpperCase(), email: email.toLowerCase(), phone, consent: CONSENT_YES,
-    status: 'DRAFT', registered_at: nowIso(),
+    status: 'DRAFT', registered_at: now, consent_at: now, consent_version: PRIVACY_VERSION,
+    ...(privacyAccepted ? { privacy_version: PRIVACY_VERSION, privacy_accepted_at: now } : {}),
   });
   db.prepare("INSERT INTO users (username, password_hash, role, member_id, email_verified) VALUES (?, ?, 'member', ?, ?)")
     .run(email.toLowerCase(), passwordHash, id, emailVerified ? 1 : 0);
@@ -210,6 +219,8 @@ app.post('/api/login', async (req, res) => {
   const ok = await verifyPassword(password, u?.password_hash); // runs even for unknown users (constant time)
   if (!u || !ok) {
     loginFailed(req.ip, username);
+    req.auditActor = username || '(empty)';
+    audit(req, 'login.failed');
     return res.status(401).json({ error: 'Invalid username or password' });
   }
   if (u.must_change && u.temp_expires && new Date(u.temp_expires) < new Date())
@@ -217,6 +228,8 @@ app.post('/api/login', async (req, res) => {
   loginOk(req.ip, username);
   if (needsRehash(u.password_hash)) db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), u.id);
   setSession(res, u);
+  req.user = u;
+  audit(req, 'login', `user:${u.id}`);
   res.json({ user: userPayload(u) });
 });
 
@@ -232,10 +245,13 @@ app.post('/api/register', (req, res) => {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Please enter a valid email' });
   if (password.length < 8 || password.length > 256) return res.status(400).json({ error: 'Password must be 8–256 characters' });
   if (b.consent !== true) return res.status(400).json({ error: 'You must agree to the declaration' });
+  if (b.privacy !== true) return res.status(400).json({ error: 'Please read and accept the privacy notice' });
   if (validate({ email, name_kh, name_en }))
     return res.status(400).json({ error: 'This email cannot be registered. If you are already a member, sign in with Google or contact the admin.' });
-  const u = createApplicant({ name_kh, name_en, email, phone: String(b.phone || '').trim().slice(0, 50) }, hashPassword(password), false);
+  const u = createApplicant({ name_kh, name_en, email, phone: String(b.phone || '').trim().slice(0, 50) }, hashPassword(password), false, true);
   setSession(res, u);
+  req.user = u;
+  audit(req, 'register', `member:${u.member_id}`, { privacy_version: PRIVACY_VERSION });
   res.json({ user: userPayload(u) });
 });
 
@@ -277,6 +293,8 @@ app.post('/api/login/google', async (req, res) => {
   try {
     const u = googleUser(g);
     setSession(res, u);
+    req.user = u;
+    audit(req, 'login.google', `user:${u.id}`);
     res.json({ user: userPayload(u) });
   } catch (e) { res.status(409).json({ error: safeMessage(e) }); }
 });
@@ -293,7 +311,10 @@ app.post('/auth/google/callback', express.urlencoded({ extended: false, limit: '
   const g = await verifyGoogleToken(String(req.body?.credential || ''), GOOGLE_CLIENT_ID).catch(() => null);
   if (!g) { loginFailed(req.ip, 'google'); return fail('Google sign-in failed'); }
   try {
-    setSession(res, googleUser(g));
+    const u = googleUser(g);
+    setSession(res, u);
+    req.user = u;
+    audit(req, 'login.google', `user:${u.id}`);
     res.redirect(303, '/#/');
   } catch (e) { fail(safeMessage(e)); }
 });
@@ -301,15 +322,17 @@ app.post('/auth/google/callback', express.urlencoded({ extended: false, limit: '
 // Logout signs this account out on every device (revokes all its session cookies).
 app.post('/api/logout', (req, res) => {
   const u = sessionUser(req);
-  if (u) revokeUserSessions(u.id);
+  if (u) { revokeUserSessions(u.id); req.user = u; audit(req, 'logout', `user:${u.id}`); }
   clearSession(res);
   res.json({ ok: true });
 });
 
 // ---------- signed-in user ----------
 app.get('/api/me', requireUser, (req, res) => {
-  res.json({ user: userPayload(req.user), member: req.user.member_id ? getMember(req.user.member_id) : null });
+  res.json({ user: userPayload(req.user), member: req.user.member_id ? getMember(req.user.member_id) : null, privacy_version: PRIVACY_VERSION });
 });
+
+const changedKeys = (rec, existing) => Object.keys(rec).filter((k) => String(rec[k] ?? '') !== String(existing[k] ?? ''));
 
 app.put('/api/me', requireUser, (req, res) => {
   if (!req.user.member_id) return res.status(400).json({ error: 'No member profile' });
@@ -318,8 +341,49 @@ app.put('/api/me', requireUser, (req, res) => {
   const err = validate(rec, existing);
   if (err) return res.status(400).json({ error: err });
   applyConsent(rec, existing);
+  const changed = changedKeys(rec, existing);
   saveMember(existing.id, rec);
+  if (changed.length) audit(req, rec.consent && rec.consent !== existing.consent ? 'consent.change' : 'member.self_update', `member:${existing.id}`, { fields: changed });
   res.json({ member: getMember(existing.id) });
+});
+
+// Accept the current privacy notice (recorded with version + time as proof).
+app.post('/api/me/privacy', requireUser, (req, res) => {
+  if (req.body?.accept !== true) return res.status(400).json({ error: 'Accept is required' });
+  if (req.user.member_id) saveMember(req.user.member_id, { privacy_version: PRIVACY_VERSION, privacy_accepted_at: nowIso() });
+  audit(req, 'privacy.accept', req.user.member_id ? `member:${req.user.member_id}` : `user:${req.user.id}`, { version: PRIVACY_VERSION });
+  res.json({ member: req.user.member_id ? getMember(req.user.member_id) : null });
+});
+
+// Right of access / portability: everything we hold about the signed-in person, as JSON.
+app.get('/api/me/export', requireUser, (req, res) => {
+  const u = db.prepare('SELECT id, username, role, email_verified, must_change FROM users WHERE id = ?').get(req.user.id);
+  const member = req.user.member_id ? getMember(req.user.member_id) : null;
+  const events = req.user.member_id ? db.prepare(`SELECT e.title, e.location, e.starts_at, p.joined_at FROM event_participants p
+    JOIN events e ON e.id = p.event_id WHERE p.member_id = ? ORDER BY e.starts_at`).all(req.user.member_id) : [];
+  const history = req.user.member_id ? memberAudit(req.user.member_id) : [];
+  audit(req, 'data.export_own', req.user.member_id ? `member:${req.user.member_id}` : `user:${req.user.id}`);
+  res.set({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': 'attachment; filename="my-aisarc-data.json"' });
+  res.send(JSON.stringify({
+    exported_at: nowIso(), privacy_notice_version: PRIVACY_VERSION,
+    account: u, member, events_joined: events, activity_on_my_record: history,
+    note: 'Uploaded photos and certificates can be downloaded from your profile (View buttons).',
+  }, null, 2));
+});
+
+// Right to erasure: member asks for deletion; admins see the request and must act within 30 days.
+app.post('/api/me/deletion', requireUser, (req, res) => {
+  if (!req.user.member_id) return res.status(400).json({ error: 'No member profile' });
+  const reason = String(req.body?.reason || '').trim().slice(0, 500);
+  saveMember(req.user.member_id, { deletion_requested_at: nowIso(), deletion_reason: reason });
+  audit(req, 'deletion.request', `member:${req.user.member_id}`);
+  res.json({ member: getMember(req.user.member_id) });
+});
+app.delete('/api/me/deletion', requireUser, (req, res) => {
+  if (!req.user.member_id) return res.status(400).json({ error: 'No member profile' });
+  saveMember(req.user.member_id, { deletion_requested_at: '', deletion_reason: '' });
+  audit(req, 'deletion.cancel', `member:${req.user.member_id}`);
+  res.json({ member: getMember(req.user.member_id) });
 });
 
 // Member submits their application (DRAFT / REJECTED) or renewal (PENDING / INACTIVE) for moderator review.
@@ -341,6 +405,7 @@ app.post('/api/me/submit', requireUser, (req, res) => {
   const err = validate({}, m);
   if (err) return res.status(400).json({ error: err });
   saveMember(m.id, { status: 'REVIEW', applied_at: nowIso() });
+  audit(req, 'member.submit', `member:${m.id}`, { from: m.status });
   res.json({ member: getMember(m.id) });
 });
 
@@ -360,6 +425,7 @@ app.post('/api/me/password', requireUser, async (req, res) => {
   db.prepare('UPDATE users SET password_hash = ?, must_change = 0, temp_expires = NULL, token_version = token_version + 1 WHERE id = ?')
     .run(hashPassword(password), u.id);
   setSession(res, u);
+  audit(req, 'password.change', `user:${u.id}`);
   res.json({ ok: true });
 });
 
@@ -398,6 +464,7 @@ app.post('/api/upload', requireUser, (req, res) => {
     const name = storeDataUrl(dataUrl, `${id}-${field}`, f.type === 'file');
     removeUpload(existing[field]);
     saveMember(id, { [field]: `file:${name}` });
+    audit(req, 'file.upload', `member:${id}`, { field });
     res.json({ member: getMember(id) });
   } catch (e) {
     if (!(e instanceof UserError)) console.error(e);
@@ -413,6 +480,10 @@ app.get('/api/files/:name', requireUser, (req, res) => {
   if (!isStaff && !isPublic && req.user.member_id !== Number(name.split('-')[0])) return res.status(403).end();
   const file = path.join(UPLOAD_DIR, name);
   if (!fs.existsSync(file)) return res.status(404).end();
+  // Certificates are sensitive documents: log when staff open someone else's.
+  if (isStaff && name.includes('-cert_file-') && req.user.member_id !== Number(name.split('-')[0])) {
+    audit(req, 'file.view', `member:${Number(name.split('-')[0])}`, { field: 'cert_file' });
+  }
   // Sandbox served files so a crafted file can never run script on this site.
   res.set({ 'Cache-Control': 'private, max-age=86400', 'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'" });
   res.sendFile(file);
@@ -429,6 +500,7 @@ app.put('/api/association', requireAdmin, (req, res) => {
     if (f.type === 'number') v = toNumberText(v) || '0';
     patch[f.key] = v;
   }
+  audit(req, 'association.update', 'association', { fields: Object.keys(patch) });
   res.json(saveAssociation(patch));
 });
 
@@ -448,8 +520,13 @@ app.get('/api/members', requireStaff, (req, res) => res.json(listMembers(req.que
 
 app.get('/api/members/:id', requireStaff, (req, res) => {
   const m = getMember(Number(req.params.id));
-  m ? res.json(m) : res.status(404).json({ error: 'Not found' });
+  if (!m) return res.status(404).json({ error: 'Not found' });
+  audit(req, 'member.view', `member:${m.id}`);
+  res.json(m);
 });
+
+// History of everything done to one member record (admins only).
+app.get('/api/members/:id/audit', requireAdmin, (req, res) => res.json(memberAudit(Number(req.params.id))));
 
 app.post('/api/members/:id/review', requireStaff, (req, res) => {
   const id = Number(req.params.id);
@@ -457,13 +534,17 @@ app.post('/api/members/:id/review', requireStaff, (req, res) => {
   if (!m) return res.status(404).json({ error: 'Not found' });
   if (req.user.role !== 'admin' && m.status !== 'REVIEW') return res.status(400).json({ error: 'This member is not waiting for review' });
   const { decision, reason, message = '' } = req.body || {};
-  if (decision === 'approve') return res.json(activate(id, req.user.username));
+  if (decision === 'approve') {
+    audit(req, 'member.approve', `member:${id}`);
+    return res.json(activate(id, req.user.username));
+  }
   if (decision !== 'reject') return res.status(400).json({ error: 'Invalid decision' });
   const r = REJECT_REASONS.find((x) => x.key === reason);
   const msg = String(message).trim().slice(0, 1000);
   if (!r) return res.status(400).json({ error: 'Please choose a reason for rejecting' });
   if (r.key === 'other' && !msg) return res.status(400).json({ error: 'Please write a message explaining the reason' });
   saveMember(id, { status: 'REJECTED', review: { decision: 'rejected', reason: r.key, message: msg, by: req.user.username, at: nowIso() } });
+  audit(req, 'member.reject', `member:${id}`, { reason: r.key });
   res.json(getMember(id));
 });
 
@@ -475,6 +556,7 @@ app.post('/api/members', requireAdmin, (req, res) => {
   applyConsent(rec);
   const id = saveMember(null, rec);
   syncUsername(id, rec.email);
+  audit(req, 'member.create', `member:${id}`);
   res.json(getMember(id));
 });
 
@@ -487,8 +569,10 @@ app.put('/api/members/:id', requireAdmin, (req, res) => {
   if (rec.status === existing.status) delete rec.status; // keep derived PENDING from being stored
   applyConsent(rec, existing);
   if (rec.expires_at === existing.expires_at) delete rec.expires_at;
+  const changed = changedKeys(rec, existing);
   saveMember(existing.id, rec);
   if (rec.email) syncUsername(existing.id, rec.email);
+  if (changed.length) audit(req, 'member.update', `member:${existing.id}`, { fields: changed });
   if (rec.status === 'ACTIVE') return res.json(activate(existing.id, req.user.username));
   res.json(getMember(existing.id));
 });
@@ -497,9 +581,10 @@ app.post('/api/members/:id/status', requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (!getMember(id)) return res.status(404).json({ error: 'Not found' });
   const { status } = req.body || {};
-  if (status === 'ACTIVE') return res.json(activate(id, req.user.username));
+  if (status === 'ACTIVE') { audit(req, 'member.activate', `member:${id}`); return res.json(activate(id, req.user.username)); }
   if (status !== 'INACTIVE') return res.status(400).json({ error: 'Invalid status' });
   saveMember(id, { status: 'INACTIVE' });
+  audit(req, 'member.deactivate', `member:${id}`);
   res.json(getMember(id));
 });
 
@@ -514,6 +599,7 @@ app.put('/api/members/:id/role', requireAdmin, (req, res) => {
   if (u.role === 'admin' && role !== 'admin' && (u.id === req.user.id || adminCount() <= 1))
     return res.status(400).json({ error: 'You cannot remove your own admin role or the last admin' });
   db.prepare('UPDATE users SET role = ?, token_version = token_version + 1 WHERE member_id = ?').run(role, m.id);
+  audit(req, 'role.change', `member:${m.id}`, { from: u.role, to: role });
   res.json(getMember(m.id));
 });
 
@@ -527,6 +613,7 @@ app.delete('/api/members/:id', requireAdmin, (req, res) => {
   removeUpload(m.photo);
   removeUpload(m.cert_file);
   deleteMember(m.id);
+  audit(req, 'member.delete', `member:${m.id}`, { member_no: m.member_no || null, deletion_requested: !!m.deletion_requested_at });
   res.json({ ok: true });
 });
 
@@ -541,6 +628,7 @@ app.post('/api/members/:id/password', requireAdmin, (req, res) => {
   const pw = randomPassword();
   db.prepare('UPDATE users SET password_hash = ?, must_change = 1, temp_expires = ?, token_version = token_version + 1 WHERE member_id = ?')
     .run(hashPassword(pw), tempExpiry(), m.id);
+  audit(req, 'password.reset', `member:${m.id}`);
   res.json({ username: m.email, password: pw, expires_hours: TEMP_PW_HOURS });
 });
 
@@ -548,6 +636,7 @@ app.post('/api/members/:id/password', requireAdmin, (req, res) => {
 app.get('/api/export.xlsx', requireAdmin, (req, res) => {
   const ids = String(req.query.ids || '').split(',').map(Number).filter(Boolean);
   const rows = listMembers().filter((m) => !ids.length || ids.includes(m.id));
+  audit(req, 'members.export', 'members', { count: rows.length, scope: ids.length ? 'selected' : 'all' });
   const fmt = (f, v) => {
     if (v == null || v === '') return '';
     if (f.type === 'datetime') return new Date(new Date(v).getTime() + 7 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
@@ -592,6 +681,7 @@ app.post('/api/users', requireAdmin, (req, res) => {
   if (db.prepare('SELECT id FROM users WHERE username = ?').get(username)) return res.status(400).json({ error: 'Username already exists' });
   db.prepare('INSERT INTO users (username, password_hash, role, must_change, temp_expires) VALUES (?,?,?,1,?)')
     .run(username, hashPassword(password), role, tempExpiry());
+  audit(req, 'user.create', `username:${username}`, { role });
   res.json({ ok: true });
 });
 
@@ -606,6 +696,7 @@ app.put('/api/users/:id', requireAdmin, (req, res) => {
   if (u.role === 'admin' && role !== 'admin' && (u.id === req.user.id || adminCount() <= 1))
     return res.status(400).json({ error: 'You cannot remove your own admin role or the last admin' });
   db.prepare('UPDATE users SET role = ?, token_version = token_version + 1 WHERE id = ?').run(role, u.id);
+  audit(req, 'role.change', `user:${u.id}`, { from: u.role, to: role });
   res.json({ ok: true });
 });
 
@@ -616,6 +707,7 @@ app.post('/api/users/:id/password', requireAdmin, (req, res) => {
   const pw = randomPassword();
   db.prepare('UPDATE users SET password_hash = ?, must_change = 1, temp_expires = ?, token_version = token_version + 1 WHERE id = ?')
     .run(hashPassword(pw), tempExpiry(), u.id);
+  audit(req, 'password.reset', `user:${u.id}`);
   res.json({ username: u.username, password: pw, expires_hours: TEMP_PW_HOURS });
 });
 
@@ -627,27 +719,69 @@ app.delete('/api/users/:id', requireAdmin, (req, res) => {
   if (u.role === 'admin' && adminCount() <= 1) return res.status(400).json({ error: 'Cannot remove the last admin' });
   if (u.member_id) db.prepare("UPDATE users SET role = 'member', token_version = token_version + 1 WHERE id = ?").run(u.id);
   else db.prepare('DELETE FROM users WHERE id = ?').run(u.id);
+  audit(req, u.member_id ? 'role.change' : 'user.delete', `user:${u.id}`, { username: u.username, from: u.role });
   res.json({ ok: true });
 });
 
 // ---------- admin: backup & restore ----------
-app.get('/api/backup', requireAdmin, (req, res) => {
+// POST (not GET) so the optional passphrase never appears in URLs or server logs.
+app.post('/api/backup', requireAdmin, (req, res) => {
+  const pass = String(req.body?.passphrase || '');
+  if (pass && pass.length < 10) return res.status(400).json({ error: 'Passphrase must be at least 10 characters' });
   const stamp = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 16).replace(/[-:T]/g, '');
-  res.set({ 'Content-Type': 'application/gzip', 'Content-Disposition': `attachment; filename="aisarc-backup-${stamp}.json.gz"` });
-  res.send(createBackup());
+  audit(req, 'backup.download', 'database', { encrypted: !!pass });
+  res.set({
+    'Content-Type': 'application/octet-stream',
+    'Content-Disposition': `attachment; filename="aisarc-backup-${stamp}${pass ? '.aisarc-enc' : '.json.gz'}"`,
+  });
+  res.send(createBackup(pass));
 });
 
 app.post('/api/restore', requireAdmin, express.raw({ type: 'application/octet-stream', limit: '300mb' }), (req, res) => {
   if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'No file uploaded' });
   try {
-    const r = restoreBackup(req.body);
+    let pass = '';
+    try { pass = decodeURIComponent(String(req.get('X-Backup-Passphrase') || '')); } catch { /* treat as no passphrase */ }
+    const r = restoreBackup(req.body, pass);
+    audit(req, 'backup.restore', 'database', { from: r.created_at, counts: r.counts });
     clearSession(res);
     res.json(r);
   } catch (e) {
-    console.error('[restore]', e);
+    console.error('[restore]', e.userMessage || e);
     res.status(400).json({ error: e.userMessage || 'Restore failed – the file is not a valid AISARC backup. Nothing was changed.' });
   }
 });
+
+// ---------- admin: audit log & privacy dashboard ----------
+app.get('/api/audit', requireAdmin, (req, res) => {
+  res.json(listAudit({ q: req.query.q, before: req.query.before ? Number(req.query.before) : null, limit: req.query.limit }));
+});
+
+app.get('/api/privacy/requests', requireAdmin, (req, res) => {
+  const rows = listMembers().filter((m) => m.deletion_requested_at)
+    .map((m) => ({ id: m.id, member_no: m.member_no, name_kh: m.name_kh, name_en: m.name_en, requested_at: m.deletion_requested_at, reason: m.deletion_reason || '' }));
+  res.json(rows);
+});
+
+// ---------- retention (runs at start-up and daily) ----------
+function retention() {
+  const cutoff = new Date(Date.now() - 365 * 864e5).toISOString();
+  const stale = db.prepare(`SELECT id FROM members WHERE json_extract(data, '$.status') = 'DRAFT'
+    AND ifnull(updated_at, ifnull(json_extract(data, '$.registered_at'), '')) < ?`).all(cutoff);
+  for (const { id } of stale) {
+    const m = getMember(id);
+    removeUpload(m?.photo);
+    removeUpload(m?.cert_file);
+    deleteMember(id);
+  }
+  const auditPurged = purgeAudit(730);
+  const backupsPurged = purgeOldBackups(90);
+  if (stale.length || auditPurged || backupsPurged) {
+    audit({ auditActor: 'system' }, 'retention.purge', 'database', { drafts: stale.length, audit: auditPurged, backups: backupsPurged });
+  }
+}
+retention();
+setInterval(retention, 24 * 3600e3).unref();
 
 registerEvents(app);
 
@@ -658,7 +792,7 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 app.use(express.static(PUBLIC, {
   index: false,
   dotfiles: 'deny',
-  setHeaders: (res, file) => res.set('Cache-Control', /\.(png|jpe?g|webp|svg)$/.test(file) ? 'public, max-age=86400' : 'no-cache'),
+  setHeaders: (res, file) => res.set('Cache-Control', /\.(png|jpe?g|webp|svg|woff2)$/.test(file) ? 'public, max-age=86400' : 'no-cache'),
 }));
 app.get(/.*/, (req, res) => res.set('Cache-Control', 'no-cache').sendFile(path.join(PUBLIC, 'index.html')));
 

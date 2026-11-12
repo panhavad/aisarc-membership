@@ -1,5 +1,6 @@
 import { db, getMember } from './db.js';
 import { requireUser, requireStaff } from './auth.js';
+import { audit } from './audit.js';
 
 const nowIso = () => new Date().toISOString();
 const isStaff = (u) => ['admin', 'moderator'].includes(u.role);
@@ -72,7 +73,8 @@ export function registerEvents(app) {
     const view = eventView(e, req.user);
     // Members see who joined by name; staff also get phone numbers and member numbers.
     const list = participants(e.id);
-    view.participants = isStaff(req.user) ? list : list.map(({ name_kh, name_en, member_id }) => ({ name_kh, name_en, member_id }));
+    // Data minimisation: only staff see who joined; members only see the count.
+    view.participants = isStaff(req.user) ? list : [];
     res.json(view);
   });
 
@@ -81,6 +83,7 @@ export function registerEvents(app) {
       const e = cleanEvent(req.body);
       const r = db.prepare(`INSERT INTO events (title, location, map_url, starts_at, ends_at, description, seats, created_by, created_at, updated_at)
         VALUES (?,?,?,?,?,?,?,?,?,?)`).run(e.title, e.location, e.map_url, e.starts_at, e.ends_at, e.description, e.seats, req.user.username, nowIso(), nowIso());
+      audit(req, 'event.create', `event:${r.lastInsertRowid}`);
       res.json({ id: Number(r.lastInsertRowid) });
     } catch (err) { res.status(400).json({ error: err.message }); }
   });
@@ -94,12 +97,14 @@ export function registerEvents(app) {
       if (e.seats > 0 && e.seats < joined) throw new Error(`${joined} members already joined – seats cannot be fewer than that`);
       db.prepare('UPDATE events SET title=?, location=?, map_url=?, starts_at=?, ends_at=?, description=?, seats=?, updated_at=? WHERE id=?')
         .run(e.title, e.location, e.map_url, e.starts_at, e.ends_at, e.description, e.seats, nowIso(), id);
+      audit(req, 'event.update', `event:${id}`);
       res.json({ id });
     } catch (err) { res.status(400).json({ error: err.message }); }
   });
 
   app.delete('/api/events/:id', requireStaff, (req, res) => {
     db.prepare('DELETE FROM events WHERE id = ?').run(Number(req.params.id));
+    audit(req, 'event.delete', `event:${req.params.id}`);
     res.json({ ok: true });
   });
 

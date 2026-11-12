@@ -1,6 +1,6 @@
 {
   "name": "aisarc-membership",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
   "type": "module",
   "description": "AISARC membership management web app",
@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "import": "node scripts/import.js"
+    "import": "node scripts/import.js",
+    "test": "node test/run.js"
   },
   "dependencies": {
     "express": "^5.3.0",

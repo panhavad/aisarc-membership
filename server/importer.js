@@ -39,6 +39,8 @@ export function importWorkbook(buffer, { overwrite = false } = {}) {
         rec[f.key] = v;
       }
       rec.joined_at = parseTimestamp(row[0]) || new Date().toISOString();
+      // Consent was given in the Google Form declaration at submission time.
+      if (rec.consent) { rec.consent_at = rec.joined_at; rec.consent_version = 'google-form'; }
       const existing = rec.email ? findMemberByEmail(rec.email) : null;
       if (existing && !overwrite) { result.skipped++; continue; }
       const id = saveMember(existing?.id, rec);
