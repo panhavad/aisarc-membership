@@ -1,6 +1,7 @@
 // Shared definitions used by both the server and the browser.
 
 export const STATUSES = [
+  { key: 'DRAFT', kh: 'មិនទាន់ដាក់ស្នើ', en: 'Profile not submitted yet', color: 'grey' },
   { key: 'REVIEW', kh: 'កំពុងពិនិត្យ', en: 'Waiting for review', color: 'orange' },
   { key: 'PENDING', kh: 'ផុតកំណត់', en: 'Expired – renewal needed', color: 'grey' },
   { key: 'ACTIVE', kh: 'សកម្ម', en: 'Active', color: 'green' },
@@ -93,5 +94,15 @@ export const FIELDS = [
 ];
 
 export const FIELD_MAP = Object.fromEntries(FIELDS.map((f) => [f.key, f]));
+
+// Fields a new member must complete before they can submit their profile for review.
+export const SUBMIT_REQUIRED = [
+  'name_kh', 'name_en', 'gender', 'nationality', 'dob', 'birthplace', 'address', 'tshirt',
+  'phone', 'occupation', 'highest_degree', 'workplace', 'department', 'employment', 'experience', 'photo', 'consent',
+];
+export const isRequiredForReview = (key) => SUBMIT_REQUIRED.includes(key);
+// Returns the fields that are still missing (consent must be "agree").
+export const missingForReview = (m) => SUBMIT_REQUIRED.filter((k) =>
+  (k === 'consent' ? m?.consent !== CONSENT_YES : !String(m?.[k] ?? '').trim()));
 // Only admins and the member themself can edit; moderators have read-only access.
 export const canEdit = (f, role) => role === 'admin' || (role === 'member' && (f.edit || 'member') === 'member');

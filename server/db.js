@@ -53,6 +53,7 @@ for (const [table, col, def] of [
   ['users', 'token_version', 'INTEGER NOT NULL DEFAULT 0'],
   ['users', 'email_verified', 'INTEGER NOT NULL DEFAULT 0'],
   ['users', 'temp_expires', 'TEXT'],
+  ['events', 'map_url', 'TEXT'],
 ]) {
   if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
 }
@@ -164,7 +165,7 @@ export function saveMember(id, fields) {
     else data[k] = v;
   }
   if (!data.status) data.status = 'ACTIVE';
-  if (data.status !== 'REVIEW' && data.status !== 'REJECTED') {
+  if (!['REVIEW', 'REJECTED', 'DRAFT'].includes(data.status)) {
     if (!cols.member_no) cols.member_no = nextMemberNo();
     if (!cols.joined_at) cols.joined_at = now();
   }

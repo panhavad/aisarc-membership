@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  FIELDS, FIELD_MAP, ASSOC_FIELDS, ROLES, REJECT_REASONS, CONSENT_YES, CONSENT_NO, canEdit,
+  FIELDS, FIELD_MAP, ASSOC_FIELDS, ROLES, REJECT_REASONS, CONSENT_YES, CONSENT_NO, canEdit, missingForReview,
 } from '../public/fields.js';
 import {
   db, UPLOAD_DIR, getMember, listMembers, saveMember, deleteMember, getAssociation, saveAssociation,
@@ -146,12 +146,15 @@ function validate(rec, existing = {}) {
   return null;
 }
 
-// Declaration consent drives the status: "not agree" => INACTIVE; agreeing again => back to REVIEW.
+// Declaration consent drives the status: "not agree" => INACTIVE; agreeing again => back to review
+// (or back to DRAFT for applicants who were never approved, so they still have to submit).
 function applyConsent(rec, existing = {}) {
   if (rec.consent === CONSENT_NO) rec.status = 'INACTIVE';
   else if (rec.consent === CONSENT_YES && existing.consent === CONSENT_NO && existing.status === 'INACTIVE' && !rec.status) {
-    rec.status = 'REVIEW';
-    rec.applied_at = nowIso();
+    if (existing.member_no) {
+      rec.status = 'REVIEW';
+      rec.applied_at = nowIso();
+    } else rec.status = 'DRAFT';
   }
 }
 
@@ -180,10 +183,11 @@ function activate(id, by) {
   return getMember(id);
 }
 
+// New applicants start as DRAFT: they must complete their profile and submit it for review.
 function createApplicant({ name_kh = '', name_en = '', email, phone = '' }, passwordHash, emailVerified) {
   const id = saveMember(null, {
     name_kh, name_en: name_en.toUpperCase(), email: email.toLowerCase(), phone, consent: CONSENT_YES,
-    status: 'REVIEW', applied_at: nowIso(),
+    status: 'DRAFT', registered_at: nowIso(),
   });
   db.prepare("INSERT INTO users (username, password_hash, role, member_id, email_verified) VALUES (?, ?, 'member', ?, ?)")
     .run(email.toLowerCase(), passwordHash, id, emailVerified ? 1 : 0);
@@ -317,12 +321,22 @@ app.put('/api/me', requireUser, (req, res) => {
   res.json({ member: getMember(existing.id) });
 });
 
-// Member (re)submits their application / renewal for moderator review.
+// Member submits their application (DRAFT / REJECTED) or renewal (PENDING / INACTIVE) for moderator review.
+// Applications must have every required field completed.
 app.post('/api/me/submit', requireUser, (req, res) => {
   const m = req.user.member_id && getMember(req.user.member_id);
   if (!m) return res.status(400).json({ error: 'No member profile' });
-  if (!['REJECTED', 'PENDING', 'INACTIVE'].includes(m.status)) return res.status(400).json({ error: 'Nothing to submit' });
+  if (!['DRAFT', 'REJECTED', 'PENDING', 'INACTIVE'].includes(m.status)) return res.status(400).json({ error: 'Nothing to submit' });
   if (m.consent !== CONSENT_YES) return res.status(400).json({ error: 'Please agree to the declaration in your profile first' });
+  if (['DRAFT', 'REJECTED'].includes(m.status)) {
+    const missing = missingForReview(m);
+    if (missing.length) {
+      return res.status(400).json({
+        error: `Please complete: ${missing.map((k) => FIELD_MAP[k].en).join(', ')}`,
+        missing,
+      });
+    }
+  }
   const err = validate({}, m);
   if (err) return res.status(400).json({ error: err });
   saveMember(m.id, { status: 'REVIEW', applied_at: nowIso() });

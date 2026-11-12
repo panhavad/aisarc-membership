@@ -1,6 +1,8 @@
 import {
   FIELDS, SECTIONS, STATUSES, STATUS_MAP, ROLES, REJECT_REASONS, ASSOC_FIELDS, DECLARATION, CONSENT_YES, canEdit,
+  SUBMIT_REQUIRED, missingForReview,
 } from '/fields.js';
+import { startTour, maybeAutoTour, tourKind } from '/tour.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const app = $('#app');
@@ -150,9 +152,14 @@ const header = (title, sub = '', back = '') => `
   <header class="top">
     ${back ? `<a class="icon-btn" href="#${back}" aria-label="Back">${ICON.back}</a>` : ''}
     <div style="flex:1;min-width:0"><h1>${title}</h1>${sub ? `<div class="sub">${sub}</div>` : ''}</div>
+    <button class="icon-btn help-btn" data-tour aria-label="System tour / help" title="ណែនាំប្រព័ន្ធ · System tour">?</button>
     <a class="icon-btn" href="#/password" aria-label="Change password" title="Change password">${ICON.key}</a>
     <button class="icon-btn" data-logout aria-label="Sign out" title="Sign out">${ICON.logout}</button>
   </header>`;
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-tour]') && state.user) startTour(tourKind(state.user, state.member));
+});
 
 document.addEventListener('click', async (e) => {
   if (!e.target.closest('[data-logout]')) return;
@@ -202,12 +209,18 @@ function reviewReason(m) {
 // Explains the current status to the member and offers the next action.
 function memberNotice(m) {
   const s = m.status;
+  if (s === 'DRAFT') {
+    const left = missingForReview(m).length;
+    return `<div class="notice grey"><h3>បំពេញព័ត៌មាន រួចដាក់ស្នើ · Complete your profile</h3>
+    <p>Your application has not been submitted yet.${left ? ` <b>${left}</b> required item${left === 1 ? ' is' : 's are'} still missing.` : ' Everything is complete – submit it for review.'}</p>
+    <div class="actions"><a class="btn sm" href="#/profile">Complete &amp; submit · បំពេញ និង ដាក់ស្នើ</a></div></div>`;
+  }
   if (s === 'REVIEW') return `<div class="notice orange"><h3>កំពុងរង់ចាំការពិនិត្យ · Waiting for review</h3>
     <p>A moderator will review your information soon. Please make sure your profile is complete and correct.</p>
     <div class="actions"><a class="btn sm light" href="#/profile">Check my information</a></div></div>`;
   if (s === 'REJECTED') return `<div class="notice red"><h3>ពាក្យសុំត្រូវបានបដិសេធ · Application rejected</h3>
     ${reviewReason(m)}<p>Please update your information, then submit again.</p>
-    <div class="actions"><a class="btn sm light" href="#/profile">Edit my information</a><button class="btn sm" data-submit>Submit for review</button></div></div>`;
+    <div class="actions"><a class="btn sm" href="#/profile">Fix &amp; resubmit · កែ និង ដាក់ស្នើម្ដងទៀត</a></div></div>`;
   if (s === 'PENDING') return `<div class="notice grey"><h3>សមាជិកភាពផុតកំណត់ · Membership expired</h3>
     <p>Your membership expired on <b>${esc(fmtDate(m.expires_at))}</b>. Please pay the membership fee (see Association) and request renewal.</p>
     <div class="actions"><a class="btn sm light" href="#/association">Payment info</a><button class="btn sm" data-submit>Request renewal</button></div></div>`;
@@ -248,11 +261,13 @@ function viewPass() {
 }
 
 // ---------- member form ----------
-function fieldHtml(f, m, role) {
+function fieldHtml(f, m, role, need = null) {
   const editable = canEdit(f, role);
   const v = m[f.key] ?? '';
   const dis = editable ? '' : 'disabled';
-  const lbl = `<span class="lbl">${esc(f.kh)}${f.required ? ' *' : ''}${editable || role === 'moderator' ? '' : ' <span class="lock">🔒</span>'}<small>${esc(f.en)}</small></span>`;
+  const req = f.required || need?.required.has(f.key);
+  const miss = need?.missing.has(f.key) ? ' miss' : '';
+  const lbl = `<span class="lbl">${esc(f.kh)}${req ? ' <b class="req">*</b>' : ''}${editable || role === 'moderator' ? '' : ' <span class="lock">🔒</span>'}<small>${esc(f.en)}</small></span>`;
   const name = `name="${f.key}" id="f_${f.key}"`;
   let input;
   if (f.type === 'photo' || f.type === 'file') {
@@ -263,7 +278,7 @@ function fieldHtml(f, m, role) {
     input = `<div class="upload"><div class="thumb">${thumb}</div><div class="actions">
       ${editable ? `<label class="btn sm light">Upload<input type="file" data-upload="${f.key}" accept="${f.accept || 'image/*'}"></label>` : ''}
       ${fileLink(v) ? `<a class="btn sm light" href="${esc(fileLink(v))}" target="_blank" rel="noopener noreferrer">View</a>` : ''}</div></div>`;
-    return `<div class="field">${lbl}${input}</div>`;
+    return `<div class="field${miss}" data-field="${f.key}">${lbl}${input}</div>`;
   }
   if (f.type === 'datetime') {
     input = editable ? `<input type="datetime-local" ${name} value="${esc(toLocalInput(v))}">` : `<input value="${esc(fmtDateTime(v))}" disabled>`;
@@ -282,14 +297,15 @@ function fieldHtml(f, m, role) {
     input = `<input type="${type}" ${name} ${list} value="${esc(v)}" ${dis} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} ${f.required ? 'required' : ''} ${f.upper ? 'style="text-transform:uppercase"' : ''}>`;
     if (f.list) input += `<datalist id="dl_${f.key}">${f.list.map((o) => `<option value="${esc(o)}">`).join('')}</datalist>`;
   }
-  return `<label class="field" for="f_${f.key}">${lbl}${input}</label>`;
+  return `<label class="field${miss}" for="f_${f.key}" data-field="${f.key}">${lbl}${input}</label>`;
 }
 
-function formHtml(m, role) {
+// need: { required: Set, missing: Set } – used while a new member completes their profile.
+function formHtml(m, role, need = null) {
   return SECTIONS.map((s) => {
     const fs = FIELDS.filter((f) => f.section === s.id);
     return `<section class="card"><h2>${esc(s.kh)} <small>${esc(s.en)}</small></h2>
-      <div class="grid2">${fs.map((f) => fieldHtml(f, m, role)).join('')}</div></section>`;
+      <div class="grid2">${fs.map((f) => fieldHtml(f, m, role, need)).join('')}</div></section>`;
   }).join('');
 }
 
@@ -317,33 +333,102 @@ function bindUploads(root, memberId, onDone) {
   }));
 }
 
-function viewProfile() {
+function viewProfile(showMissing = false) {
   const m = state.member;
+  const applicant = ['DRAFT', 'REJECTED'].includes(m.status);
+  const need = applicant ? { required: new Set(SUBMIT_REQUIRED), missing: new Set(showMissing ? missingForReview(m) : []) } : null;
   app.className = '';
   app.innerHTML = `${header('My Profile', 'ព័ត៌មានផ្ទាល់ខ្លួន · Edit your information')}
     ${m.status === 'ACTIVE' ? '' : memberNotice(m)}
-    <form id="pf" novalidate>${formHtml(m, 'member')}
-      <div class="sticky-save"><button class="btn block" type="submit">Save changes · រក្សាទុក</button></div>
+    ${applicant ? `<section class="card progress-card" id="progress"></section>` : ''}
+    <form id="pf" novalidate>${formHtml(m, 'member', need)}
+      <div class="sticky-save">${applicant
+        ? `<div class="actions"><button class="btn light" type="submit" style="flex:1">រក្សាទុក · Save</button>
+           <button class="btn" type="button" id="submitReview" style="flex:1.6">ដាក់ស្នើ · Submit</button></div>`
+        : '<button class="btn block" type="submit">Save changes · រក្សាទុក</button>'}</div>
     </form>`;
   const form = $('#pf');
-  app.querySelectorAll('.notice a[href="#/profile"]').forEach((a) => a.remove());
+  // The status card already explains things here; buttons for applicants live in the bottom bar.
+  app.querySelectorAll(`.notice a[href="#/profile"]${applicant ? ', .notice [data-submit]' : ''}`).forEach((a) => a.remove());
   bindSubmit(app);
-  bindUploads(form, null, (mm) => { state.member = mm; viewProfile(); });
+  // After an upload only refresh that field, so anything typed but not yet saved is kept.
+  const onUploaded = (mm) => {
+    state.member = mm;
+    form.querySelectorAll('[data-upload]').forEach((inp) => {
+      const k = inp.dataset.upload;
+      const wrap = form.querySelector(`[data-field="${k}"]`);
+      const tmp = document.createElement('div');
+      tmp.innerHTML = fieldHtml(FIELDS.find((f) => f.key === k), mm, 'member', need);
+      wrap.replaceWith(tmp.firstElementChild);
+    });
+    bindUploads(form, null, onUploaded);
+    renderProgress();
+  };
+  bindUploads(form, null, onUploaded);
+
+  // Live completion progress for applicants.
+  const current = () => ({ ...state.member, ...collect(form, 'member') });
+  const renderProgress = () => {
+    if (!applicant) return;
+    const missing = missingForReview(current());
+    const done = SUBMIT_REQUIRED.length - missing.length;
+    const pct = Math.round((done / SUBMIT_REQUIRED.length) * 100);
+    $('#progress').innerHTML = `
+      <h2>${missing.length ? 'បំពេញព័ត៌មានឱ្យគ្រប់' : 'រួចរាល់ហើយ!'} <small>${missing.length ? 'Complete your profile to submit' : 'Ready to submit'}</small></h2>
+      <div class="bar big"><i style="width:${pct}%"></i></div>
+      <p class="hint" style="text-align:left;margin:8px 0">${done} / ${SUBMIT_REQUIRED.length} required items (<b class="req">*</b>) completed</p>
+      ${missing.length ? `<div class="chips">${missing.map((k) => `<button type="button" class="mchip" data-goto="${k}">${esc(FIELDS.find((f) => f.key === k).kh)}</button>`).join('')}</div>` : ''}`;
+    form.querySelectorAll('[data-field].miss').forEach((el) => { if (!missing.includes(el.dataset.field)) el.classList.remove('miss'); });
+  };
+  renderProgress();
+  form.addEventListener('input', renderProgress);
+  form.addEventListener('change', renderProgress);
+  $('#progress')?.addEventListener('click', (e) => {
+    const k = e.target.closest('[data-goto]')?.dataset.goto;
+    if (!k) return;
+    const el = form.querySelector(`[data-field="${k}"]`);
+    el.classList.add('miss');
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.querySelector('input:not([type=file]),select,textarea')?.focus({ preventScroll: true });
+  });
+
+  const save = async () => {
+    const data = collect(form, 'member');
+    if (data.consent && data.consent !== CONSENT_YES && m.consent === CONSENT_YES
+      && !confirm('If you do not agree to the declaration your membership will become INACTIVE. Continue?')) return null;
+    const r = await api('/api/me', { method: 'PUT', body: data });
+    state.member = r.member;
+    return r.member;
+  };
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = form.querySelector('[type=submit]');
-    const data = collect(form, 'member');
-    if (data.consent && data.consent !== CONSENT_YES && m.consent === CONSENT_YES
-      && !confirm('If you do not agree to the declaration your membership will become INACTIVE. Continue?')) return;
     btn.disabled = true;
     try {
       const before = m.status;
-      const r = await api('/api/me', { method: 'PUT', body: data });
-      state.member = r.member;
-      toast('Saved ✓');
-      if (r.member.status !== before) viewProfile();
+      const mm = await save();
+      if (mm) { toast('Saved ✓'); if (mm.status !== before) viewProfile(); }
     } catch (err) { toast(err.message, true); }
     btn.disabled = false;
+  });
+  $('#submitReview')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const mm = await save();
+      if (!mm) return (btn.disabled = false);
+      if (missingForReview(mm).length) {
+        toast('Please complete the highlighted items · សូមបំពេញព័ត៌មានដែលបានសម្គាល់', true);
+        viewProfile(true);
+        const first = $('[data-field].miss');
+        first?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      if (!confirm('Submit your profile for review?\nដាក់ស្នើព័ត៌មានរបស់អ្នកដើម្បីពិនិត្យ?')) return (btn.disabled = false);
+      state.member = (await api('/api/me/submit', { body: {} })).member;
+      toast('Submitted for review ✓ · បានដាក់ស្នើ');
+      go('/pass');
+    } catch (err) { toast(err.message, true); btn.disabled = false; }
   });
 }
 
@@ -765,25 +850,53 @@ const seatsText = (e) => (e.seats ? `${e.joined_count} / ${e.seats} joined · ${
 const seatBar = (e) => (e.seats ? `<div class="bar"><i style="width:${Math.min(100, (e.joined_count / e.seats) * 100)}%"></i></div>` : '');
 
 let livePoll;
+const mapBtn = (e, cls = 'btn sm light') => (e.map_link && /^https:\/\//.test(e.map_link)
+  ? `<a class="${cls}" href="${esc(e.map_link)}" target="_blank" rel="noopener noreferrer">${ICON.pin} Google Maps</a>` : '');
+
+const PHASES = [
+  { key: 'ongoing', kh: 'កំពុងប្រព្រឹត្តទៅ', en: 'Happening now' },
+  { key: 'upcoming', kh: 'នាពេលខាងមុខ', en: 'Upcoming' },
+  { key: 'past', kh: 'បានបញ្ចប់', en: 'Past events' },
+];
+
+function eventCard(e) {
+  const badge = e.phase === 'ongoing' ? '<span class="chip c-live"><i class="live-dot"></i>LIVE</span>'
+    : e.joined ? '<span class="chip c-green">Joined</span>'
+    : e.phase === 'past' ? '<span class="chip c-grey">Ended</span>'
+    : e.seats && !e.seats_left ? '<span class="chip c-red">Full</span>' : '';
+  return `
+    <a class="ecard ${e.phase}" href="#/events/${e.id}">
+      <div class="edate"><b>${esc(new Date(e.starts_at).toLocaleDateString('en-GB', { timeZone: TZ, day: 'numeric' }))}</b>
+        <span>${esc(new Date(e.starts_at).toLocaleDateString('en-GB', { timeZone: TZ, month: 'short' }))}</span></div>
+      <div class="info"><div class="n1">${esc(e.title)}</div>
+        <div class="n2">${ICON.clock}${esc(fmtEventTime(e))}</div>
+        ${e.location ? `<div class="n2">${ICON.pin}${esc(e.location)}</div>` : ''}
+        <div class="n2">${ICON.seat}${esc(seatsText(e))}</div>${seatBar(e)}</div>
+      ${badge}
+    </a>`;
+}
+
 async function viewEvents() {
   app.className = '';
   app.innerHTML = `${header('Events', 'ព្រឹត្តិការណ៍')}
     ${isStaff() ? '<div class="actions" style="margin-bottom:12px"><a class="btn" href="#/events/new">+ New event</a></div>' : ''}
-    <div class="elist" id="elist"><div class="spin"></div></div>`;
+    <div id="elist"><div class="spin"></div></div>`;
+  let pastOpen = false;
   const load = async () => {
     if (!$('#elist')) return clearInterval(livePoll);
+    pastOpen = $('#past-events')?.open ?? pastOpen;
     try {
       const evs = await api('/api/events');
-      $('#elist').innerHTML = evs.length ? evs.map((e) => `
-        <a class="ecard${e.past ? ' past' : ''}" href="#/events/${e.id}">
-          <div class="edate"><b>${esc(new Date(e.starts_at).toLocaleDateString('en-GB', { timeZone: TZ, day: 'numeric' }))}</b>
-            <span>${esc(new Date(e.starts_at).toLocaleDateString('en-GB', { timeZone: TZ, month: 'short' }))}</span></div>
-          <div class="info"><div class="n1">${esc(e.title)}</div>
-            <div class="n2">${ICON.clock}${esc(fmtEventTime(e))}</div>
-            ${e.location ? `<div class="n2">${ICON.pin}${esc(e.location)}</div>` : ''}
-            <div class="n2">${ICON.seat}${esc(seatsText(e))}</div>${seatBar(e)}</div>
-          ${e.joined ? '<span class="chip c-green">Joined</span>' : e.past ? '<span class="chip c-grey">Ended</span>' : e.seats && !e.seats_left ? '<span class="chip c-red">Full</span>' : ''}
-        </a>`).join('') : '<div class="empty">No events yet</div>';
+      if (!evs.length) { $('#elist').innerHTML = '<div class="empty">No events yet · មិនទាន់មានព្រឹត្តិការណ៍</div>'; return; }
+      $('#elist').innerHTML = PHASES.map((p) => {
+        const list = evs.filter((e) => e.phase === p.key);
+        if (p.key === 'ongoing' && !list.length) return '';
+        const head = `<h2 class="esec-title ${p.key}">${p.key === 'ongoing' ? '<i class="live-dot"></i>' : ''}${esc(p.kh)} <small>${esc(p.en)} · ${list.length}</small></h2>`;
+        const body = list.length ? `<div class="elist">${list.map(eventCard).join('')}</div>`
+          : `<div class="empty small">${p.key === 'upcoming' ? 'No upcoming events · មិនទាន់មានព្រឹត្តិការណ៍ថ្មី' : 'No past events'}</div>`;
+        if (p.key === 'past') return list.length ? `<details class="esec" id="past-events" ${pastOpen ? 'open' : ''}><summary>${head}</summary>${body}</details>` : '';
+        return `<section class="esec">${head}${body}</section>`;
+      }).join('');
     } catch (err) { toast(err.message, true); }
   };
   await load();
@@ -795,15 +908,18 @@ async function viewEvent(id) {
   app.className = '';
   app.innerHTML = '<div class="spin"></div>';
   const render = (e) => {
-    const canJoin = state.user.member_id && !e.past;
+    const canJoin = state.user.member_id && e.phase === 'upcoming';
     const member = state.member;
     const full = e.seats && !e.seats_left;
+    const phase = PHASES.find((p) => p.key === e.phase);
     app.innerHTML = `${header('Event', 'ព្រឹត្តិការណ៍', '/events')}
       <section class="card event-detail">
+        <span class="chip ${e.phase === 'ongoing' ? 'c-live' : e.phase === 'past' ? 'c-grey' : 'c-green'}" style="display:inline-flex;margin-bottom:8px">
+          ${e.phase === 'ongoing' ? '<i class="live-dot"></i>' : ''}${esc(phase.kh)} · ${esc(phase.en)}</span>
         <h2 style="font-size:20px;line-height:1.4">${esc(e.title)}</h2>
         <dl class="kv">
           <dt>${ICON.clock}</dt><dd>${esc(fmtEventTime(e))}</dd>
-          ${e.location ? `<dt>${ICON.pin}</dt><dd>${esc(e.location)}</dd>` : ''}
+          ${e.location || e.map_link ? `<dt>${ICON.pin}</dt><dd>${esc(e.location || '')}${mapBtn(e) ? `<div style="margin-top:6px">${mapBtn(e)}</div>` : ''}</dd>` : ''}
           <dt>${ICON.seat}</dt><dd><span class="live-dot"></span><span id="seats">${esc(seatsText(e))}</span>${seatBar(e)}</dd>
         </dl>
         ${e.description ? `<p class="pre" style="font-size:14px;line-height:1.7">${esc(e.description)}</p>` : ''}
@@ -811,7 +927,8 @@ async function viewEvent(id) {
           ? '<div class="notice green" style="margin-bottom:0"><b>✓ You joined this event</b><div class="actions"><button class="btn sm light" id="leave">Cancel my seat</button></div></div>'
           : member?.status !== 'ACTIVE' ? '<div class="notice grey" style="margin-bottom:0">Only ACTIVE members can join events.</div>'
           : `<button class="btn block" id="join" ${full ? 'disabled' : ''}>${full ? 'Event is full' : 'Join this event · ចូលរួម'}</button>`)
-          : e.past ? '<div class="notice grey" style="margin-bottom:0">This event has ended.</div>' : ''}
+          : e.phase === 'past' ? '<div class="notice grey" style="margin-bottom:0">This event has ended.</div>'
+          : e.phase === 'ongoing' ? `<div class="notice green" style="margin-bottom:0">${e.joined ? '<b>✓ You joined this event.</b> ' : ''}This event is happening now.</div>` : ''}
       </section>
       <section class="card"><h2>អ្នកចូលរួម <small>Joined members (${e.joined_count}) · live</small></h2>
         ${e.participants.length ? `<div class="plist">${e.participants.map((p, i) => `
@@ -834,39 +951,48 @@ async function viewEvent(id) {
     try { render(await api(`/api/events/${id}`)); } catch (err) { toast(err.message, true); clearInterval(livePoll); go('/events'); }
   };
   await refresh();
-  // Live seat count: refresh while this page is open (skip while the user is interacting with a dialog).
+  // Live seat count: refresh while this page is open (skip while a dialog or the tour is open).
   clearInterval(livePoll);
   livePoll = setInterval(() => {
     if (!location.hash.startsWith(`#/events/${id}`) || location.hash.endsWith('/edit')) return clearInterval(livePoll);
-    if (!document.querySelector('dialog[open]')) refresh();
+    if (!document.querySelector('dialog[open], .tour')) refresh();
   }, 5000);
 }
 
 async function viewEventEdit(id) {
   app.className = '';
   const isNew = id === 'new';
-  let e = { title: '', location: '', description: '', seats: 0, starts_at: '', ends_at: '' };
+  let e = { title: '', location: '', map_url: '', description: '', seats: 0, starts_at: '', ends_at: '' };
   if (!isNew) {
     try { e = await api(`/api/events/${id}`); } catch (err) { toast(err.message, true); return go('/events'); }
   }
   app.innerHTML = `${header(isNew ? 'New event' : 'Edit event', 'ព្រឹត្តិការណ៍', isNew ? '/events' : `/events/${id}`)}
     <form class="card" id="ef" novalidate>
       <label class="field"><span class="lbl">ឈ្មោះព្រឹត្តិការណ៍ *<small>Event name</small></span><input name="title" required value="${esc(e.title)}"></label>
-      <label class="field"><span class="lbl">ទីកន្លែង<small>Location</small></span><input name="location" value="${esc(e.location)}"></label>
+      <label class="field"><span class="lbl">ទីកន្លែង<small>Location (a Google Maps search link is created automatically)</small></span><input name="location" value="${esc(e.location)}"></label>
+      <label class="field"><span class="lbl">តំណ Google Maps<small>Optional exact map link – in Google Maps tap Share → Copy link (https://maps.app.goo.gl/…)</small></span>
+        <input name="map_url" type="url" inputmode="url" placeholder="https://maps.app.goo.gl/..." value="${esc(e.map_url || '')}"></label>
+      <div class="actions" style="margin:-4px 0 14px"><button type="button" class="btn sm light" id="testmap">${ICON.pin} Test map link</button></div>
       <div class="grid2" style="margin-bottom:14px">
         <label class="field"><span class="lbl">ចាប់ផ្ដើម *<small>Starts (date &amp; time)</small></span><input type="datetime-local" name="starts_at" required value="${esc(toLocalInput(e.starts_at))}"></label>
-        <label class="field"><span class="lbl">បញ្ចប់<small>Ends (optional)</small></span><input type="datetime-local" name="ends_at" value="${esc(toLocalInput(e.ends_at))}"></label>
+        <label class="field"><span class="lbl">បញ្ចប់<small>Ends (optional – otherwise 3 hours)</small></span><input type="datetime-local" name="ends_at" value="${esc(toLocalInput(e.ends_at))}"></label>
       </div>
       <label class="field"><span class="lbl">ចំនួនកៅអី<small>Seats available (0 = unlimited)</small></span>
         <div class="unit"><input type="number" name="seats" min="0" step="1" inputmode="numeric" value="${esc(e.seats)}"><span>កៅអី</span></div></label>
       <label class="field"><span class="lbl">ការពិពណ៌នា<small>Description</small></span><textarea name="description" rows="6">${esc(e.description)}</textarea></label>
       <button class="btn block" type="submit">${isNew ? 'Publish event' : 'Save changes'}</button>
     </form>`;
+  const f = $('#ef').elements;
+  $('#testmap').addEventListener('click', () => {
+    const url = f.map_url.value.trim() || (f.location.value.trim()
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(f.location.value.trim())}` : '');
+    if (!/^https:\/\//.test(url)) return toast('Enter a location or a Google Maps link first', true);
+    window.open(url, '_blank', 'noopener');
+  });
   $('#ef').addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const f = ev.target.elements;
     const body = {
-      title: f.title.value, location: f.location.value, description: f.description.value, seats: f.seats.value,
+      title: f.title.value, location: f.location.value, map_url: f.map_url.value.trim(), description: f.description.value, seats: f.seats.value,
       starts_at: fromLocalInput(f.starts_at.value), ends_at: fromLocalInput(f.ends_at.value),
     };
     try {
@@ -976,7 +1102,9 @@ async function afterLogin(user) {
   go(user.must_change ? '/password' : home());
 }
 
-const home = () => (state.user?.member_id ? '/pass' : isStaff() ? '/admin' : '/association');
+const home = () => (state.user?.member_id
+  ? (['DRAFT', 'REJECTED'].includes(state.member?.status) ? '/profile' : '/pass')
+  : isStaff() ? '/admin' : '/association');
 
 // ---------- router ----------
 async function route() {
@@ -999,6 +1127,7 @@ async function route() {
 
   window.scrollTo(0, 0);
   clearInterval(livePoll);
+  maybeAutoTour(state.user, state.member);
   if (path === '/pass' && state.member) { setTabs('/pass'); return viewPass(); }
   if (path === '/profile' && state.member) { setTabs('/profile'); return viewProfile(); }
   if (path === '/password') { setTabs(''); return viewPassword(); }

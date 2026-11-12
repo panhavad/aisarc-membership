@@ -3,19 +3,25 @@
 Mobile-first membership management web app for **ស.គ.ឯ.ស.ប.ក – AISARC**.
 
 - **Members** sign in with username/password or Google, see their live digital membership pass, and edit their own information.
-- **New members** self-register (or sign in with Google); their application waits for a moderator.
+- **New members** self-register (or sign in with Google) and land on their profile as **DRAFT**. A progress bar shows
+  what's still missing; "Submit for review" only works once every required item (marked *) and the photo are complete.
+  Their application then waits for a moderator.
 - **Moderators** review applications and renewals (approve, or reject with a reason the member can act on) and manage events.
 - **Admins** do everything: search, add, edit, activate/deactivate, delete (hidden in a "Danger zone"), assign roles,
   reset passwords, edit Association Info (bank account, fee, QR), export members to Excel (all or selected), and
   in the **Admin** tab create/remove system users (admins, moderators) and back up / restore the whole database.
-- **Events**: admins and moderators post events (name, location, date/time, description, seats); ACTIVE members join
-  or cancel; the joined count and participant list update live.
+- **Events**: admins and moderators post events (name, location with Google Maps link, date/time, description, seats);
+  ACTIVE members join or cancel; the joined count and participant list update live. The Events tab is split into
+  *Happening now*, *Upcoming* and *Past*.
+- **System tour** (Khmer + English): starts automatically the first time for applicants, members, moderators and
+  admins (each gets its own tour), and can be replayed any time with the **?** button in the header.
 - "Member since" and membership no. are set by the system/admin and cannot be changed by members.
 
 ### Membership status
 
 | Status | Colour | Meaning |
 | --- | --- | --- |
+| DRAFT | grey | New applicant still completing their profile (not submitted yet) |
 | REVIEW | orange | Waiting for a moderator to approve or reject |
 | PENDING | grey | Membership expired (validity set in Association Info); member must pay and request renewal |
 | ACTIVE | green | Active, no action needed – blue pass with shine animation and live clock (not a screenshot) |
