@@ -179,21 +179,32 @@ function modal(html) {
 }
 
 // ---------- pass card ----------
+const DEFAULT_LEVEL = { key: 'member', kh: 'សមាជិក', en: 'Member', color: '' };
+const levels = () => state.settings?.levels || [DEFAULT_LEVEL];
+const levelOf = (m) => levels().find((l) => l.key === (m?.level || 'member')) || DEFAULT_LEVEL;
+const safeColor = (c) => (/^#[0-9a-f]{6}$/i.test(c || '') ? c : '');
+
 function passCard(m) {
   const s = statusOf(m);
   const active = s.key === 'ACTIVE';
+  const lvl = levelOf(m);
+  const color = safeColor(lvl.color);
   return `
-  <section class="pass${active ? ' on' : ''}" aria-label="Membership pass">
+  <section class="pass${active ? ' on' : ''}${color ? ' lvl' : ''}" ${color ? `style="--lvl:${color}"` : ''} aria-label="Membership pass">
     <div class="pass-head">
       <div class="pass-brand"><img class="pass-logo" src="${IMG('logo.png')}" alt="AISARC logo"><img class="pass-org" src="${IMG('name.png')}" alt="ស.គ.ឯ.ស.ប.ក AISARC"></div>
-      <div class="pass-status"><div class="pass-label">Status</div><span class="pass-pill s-${s.color}">${esc(s.key)}</span></div>
+      <div class="pass-status"><div class="pass-label">Status</div><span class="pass-pill s-${s.color}">${esc(s.key)}</span>
+        ${lvl.key !== 'member' ? `<div class="pass-level">${esc(lvl.kh)}<br>${esc(lvl.en)}</div>` : ''}</div>
     </div>
     <div class="pass-body">
       <div class="pass-info">
         <div><div class="pass-label">Name</div><div class="pass-val kh">${esc(m.name_kh || '—')}</div><div class="en">${esc(m.name_en || '')}</div></div>
-        <div><div class="pass-label">Birthday</div><div class="pass-val">${esc(m.dob || '—')}</div></div>
+        <div><div class="pass-label">Technical training</div><div class="pass-val small">${esc(m.training || '—')}</div></div>
         <div><div class="pass-label">Membership No.</div><div class="pass-val">${esc(m.member_no || '—')}</div></div>
-        <div><div class="pass-label">Member since</div><div class="pass-val">${esc(fmtDate(m.joined_at))}</div></div>
+        <div class="pass-2col">
+          <div><div class="pass-label">Birthday</div><div class="pass-val">${esc(m.dob || '—')}</div></div>
+          <div><div class="pass-label">Member since</div><div class="pass-val">${esc(fmtDate(m.joined_at))}</div></div>
+        </div>
       </div>
       <div class="pass-photo">${photoHtml(m)}</div>
     </div>
@@ -228,8 +239,10 @@ function memberNotice(m) {
   if (s === 'INACTIVE') return m.consent !== CONSENT_YES
     ? `<div class="notice red"><h3>អសកម្ម · Inactive</h3><p>You have not agreed to the declaration, so your membership is inactive and your information is not used.
        To re-activate, agree to the declaration in your profile.</p><div class="actions"><a class="btn sm light" href="#/profile">Go to my profile</a></div></div>`
-    : `<div class="notice red"><h3>អសកម្ម · Inactive</h3><p>Your membership is inactive. You can ask for it to be reviewed again.</p>
-       <div class="actions"><button class="btn sm" data-submit>Submit for review</button></div></div>`;
+    : `<div class="notice red"><h3>អសកម្ម · Inactive</h3><p>${m.inactive_reason === 'not_renewed'
+        ? 'Your membership became inactive because it was not renewed for a long time. Please pay the membership fee (see Association) and ask for it to be reviewed again.'
+        : 'Your membership is inactive. You can ask for it to be reviewed again.'}</p>
+       <div class="actions">${m.inactive_reason === 'not_renewed' ? '<a class="btn sm light" href="#/association">Payment info</a>' : ''}<button class="btn sm" data-submit>Submit for review</button></div></div>`;
   return '';
 }
 
@@ -256,15 +269,17 @@ function viewPass() {
     <div class="card" style="margin-top:16px">
       <h2>${esc(m.name_kh || m.name_en)}</h2>
       <div style="color:var(--muted);font-size:14px">${esc(m.workplace || '')}${m.department ? ` · ${esc(m.department)}` : ''}</div>
-      <div class="actions" style="margin-top:14px"><a class="btn block" href="#/profile">${ICON.user} Edit my information</a></div>
+      <div class="actions" style="margin-top:14px"><a class="btn block" href="#/profile">${ICON.user} ${m.lock?.locked ? 'My information · Request change' : 'Edit my information'}</a></div>
     </div>`;
   tickClocks();
   bindSubmit(app);
 }
 
 // ---------- member form ----------
-function fieldHtml(f, m, role, need = null) {
-  const editable = canEdit(f, role);
+// opts.edit: Set of field keys that are editable (overrides the role rules, used for locked profiles);
+// opts.reqMode: file fields upload into a change request instead of the profile.
+function fieldHtml(f, m, role, need = null, opts = {}) {
+  const editable = opts.edit ? opts.edit.has(f.key) : canEdit(f, role);
   const v = m[f.key] ?? '';
   const dis = editable ? '' : 'disabled';
   const req = f.required || need?.required.has(f.key);
@@ -278,17 +293,20 @@ function fieldHtml(f, m, role, need = null) {
       ? (url ? `<img src="${esc(url)}" alt="" referrerpolicy="no-referrer" data-rm>` : 'No photo')
       : (v ? '📄' : 'None');
     input = `<div class="upload"><div class="thumb">${thumb}</div><div class="actions">
-      ${editable ? `<label class="btn sm light">Upload<input type="file" data-upload="${f.key}" accept="${f.accept || 'image/*'}"></label>` : ''}
+      ${editable ? `<label class="btn sm light">Upload<input type="file" ${opts.reqMode ? 'data-req-upload' : 'data-upload'}="${f.key}" accept="${f.accept || 'image/*'}"></label>` : ''}
       ${fileLink(v) ? `<a class="btn sm light" href="${esc(fileLink(v))}" target="_blank" rel="noopener noreferrer">View</a>` : ''}</div></div>`;
     return `<div class="field${miss}" data-field="${f.key}">${lbl}${input}</div>`;
   }
-  if (f.type === 'datetime') {
+  if (f.type === 'level') {
+    const cur = v || 'member';
+    input = `<select ${name} ${dis}>${levels().map((l) => `<option value="${esc(l.key)}" ${l.key === cur ? 'selected' : ''}>${esc(l.kh)} · ${esc(l.en)}</option>`).join('')}</select>`;
+  } else if (f.type === 'datetime') {
     input = editable ? `<input type="datetime-local" ${name} value="${esc(toLocalInput(v))}">` : `<input value="${esc(fmtDateTime(v))}" disabled>`;
   } else if (f.type === 'select') {
-    const opts = [...f.options];
-    if (v && !opts.includes(v)) opts.unshift(v);
+    const choices = [...f.options];
+    if (v && !choices.includes(v)) choices.unshift(v);
     const label = (o) => f.labels?.[o] || (f.key === 'status' && STATUS_MAP[o] ? `${o} · ${STATUS_MAP[o].en}` : o);
-    input = `<select ${name} ${dis}><option value="">—</option>${opts.map((o) => `<option value="${esc(o)}" ${o === v ? 'selected' : ''}>${esc(label(o))}</option>`).join('')}</select>`;
+    input = `<select ${name} ${dis}><option value="">—</option>${choices.map((o) => `<option value="${esc(o)}" ${o === v ? 'selected' : ''}>${esc(label(o))}</option>`).join('')}</select>`;
   } else if (f.type === 'textarea') {
     input = `<textarea ${name} ${dis} rows="2">${esc(v)}</textarea>`;
   } else if (f.type === 'number') {
@@ -311,11 +329,12 @@ function formHtml(m, role, need = null) {
   }).join('');
 }
 
+// Disabled inputs (locked fields) are never sent.
 function collect(form, role, fields = FIELDS) {
   const out = {};
   for (const f of fields) {
     const el = form.elements[f.key];
-    if (!el || (role && !canEdit(f, role))) continue;
+    if (!el || el.disabled || (role && !canEdit(f, role))) continue;
     out[f.key] = f.type === 'datetime' ? fromLocalInput(el.value) : el.value.trim();
   }
   return out;
@@ -337,12 +356,17 @@ function bindUploads(root, memberId, onDone) {
 
 function viewProfile(showMissing = false) {
   const m = state.member;
+  if (m.lock?.locked) return viewProfileLocked();
   const applicant = ['DRAFT', 'REJECTED'].includes(m.status);
   const need = applicant ? { required: new Set(SUBMIT_REQUIRED), missing: new Set(showMissing ? missingForReview(m) : []) } : null;
+  const untilHint = !applicant && m.lock?.until
+    ? `<div class="notice grey"><p style="margin:0">✏️ You can edit your information until <b>${esc(fmtDate(m.lock.until))}</b>.
+       After that it is locked and changes are sent to the admin for approval. · អ្នកអាចកែប្រែព័ត៌មានបានរហូតដល់ ${esc(fmtDate(m.lock.until))}។</p></div>` : '';
   app.className = '';
   app.innerHTML = `${header('My Profile', 'ព័ត៌មានផ្ទាល់ខ្លួន · Edit your information')}
     ${m.status === 'ACTIVE' ? '' : memberNotice(m)}
     ${privacyBanner()}
+    ${untilHint}
     ${applicant ? `<section class="card progress-card" id="progress"></section>` : ''}
     <form id="pf" novalidate>${formHtml(m, 'member', need)}
       <div class="sticky-save">${applicant
@@ -434,6 +458,115 @@ function viewProfile(showMissing = false) {
       toast('Submitted for review ✓ · បានដាក់ស្នើ');
       go('/pass');
     } catch (err) { toast(err.message, true); btn.disabled = false; }
+  });
+}
+
+// ---------- locked profile: display only + per-section change requests ----------
+const REQ_SECTIONS = ['personal', 'contact', 'work', 'reg'];
+const fieldLabel = (k) => { const f = FIELDS.find((x) => x.key === k); return f ? `${f.kh} · ${f.en}` : k; };
+const showVal = (k, v) => {
+  if (v === '' || v == null) return '—';
+  if (String(v).startsWith('file:')) return `<a href="${esc(fileUrl(v))}" target="_blank" rel="noopener noreferrer">📎 file</a>`;
+  const f = FIELDS.find((x) => x.key === k);
+  return esc(f?.labels?.[v] || v) + (f?.unit ? ` ${esc(f.unit)}` : '');
+};
+function changeList(r) {
+  return `<ul class="chg">${Object.keys(r.changes).map((k) => `<li><b>${esc(fieldLabel(k))}</b>: <s>${showVal(k, r.previous[k])}</s> → ${showVal(k, r.changes[k])}</li>`).join('')}</ul>`;
+}
+
+async function viewProfileLocked(editing = null) {
+  const m = state.member;
+  let requests = [];
+  try { requests = await api('/api/me/change-requests'); } catch (e) { toast(e.message, true); }
+  const recent = (sec) => requests.find((r) => r.section === sec && !['replaced', 'cancelled'].includes(r.status));
+  const pendingFiles = {};
+  const editSet = (sec) => new Set(FIELDS.filter((f) => f.section === sec && canEdit(f, 'member')).map((f) => f.key));
+  const days = state.settings?.edit_days;
+
+  const sectionCard = (s) => {
+    const fs = FIELDS.filter((f) => f.section === s.id);
+    const isEditing = editing === s.id;
+    const r = recent(s.id);
+    const status = !r || isEditing ? ''
+      : r.status === 'pending' ? `<div class="notice orange req-box"><b>⏳ Change requested · កំពុងរង់ចាំការពិនិត្យ</b> <small>${esc(fmtDateTime(r.created_at))}</small>${changeList(r)}
+          ${r.note ? `<p class="pre">“${esc(r.note)}”</p>` : ''}<div class="actions"><button class="btn sm light" type="button" data-cancel-req="${r.id}">Cancel request</button></div></div>`
+      : Date.now() - new Date(r.decided_at) < 30 * 864e5
+        ? (r.status === 'approved'
+          ? `<div class="notice green req-box"><b>✓ Change approved</b> <small>${esc(fmtDateTime(r.decided_at))}</small></div>`
+          : `<div class="notice red req-box"><b>✕ Change rejected</b> <small>${esc(fmtDateTime(r.decided_at))}</small><p class="pre">${esc(r.reason || '')}</p></div>`)
+        : '';
+    const btn = REQ_SECTIONS.includes(s.id) && !isEditing && !editing
+      ? `<button class="btn sm light" type="button" data-req-section="${s.id}">✎ ${r?.status === 'pending' ? 'Update request' : 'Request change'} · ស្នើកែប្រែ</button>` : '';
+    const opts = { edit: isEditing ? editSet(s.id) : new Set(s.id === 'membership' ? ['consent'] : []), reqMode: true };
+    // Updating a pending request: start from the values already requested.
+    const updating = isEditing && r?.status === 'pending';
+    if (updating) Object.entries(r.changes).forEach(([k, v]) => { if (String(v).startsWith('file:')) pendingFiles[k] = v; });
+    const src = updating ? { ...m, ...r.changes } : m;
+    return `<section class="card ${isEditing ? 'editing' : ''}" data-section="${s.id}">
+      <div class="sec-head"><h2>${esc(s.kh)} <small>${esc(s.en)}</small></h2>${btn}</div>
+      ${status}
+      <div class="grid2">${fs.map((f) => fieldHtml(f, src, 'member', null, opts)).join('')}</div>
+      ${isEditing ? `<label class="field"><span class="lbl">Note to the admin<small>Optional – why the change is needed</small></span><textarea id="req-note" rows="2">${updating ? esc(r.note || '') : ''}</textarea></label>
+        <div class="actions"><button class="btn" type="button" id="send-req">Send for review · ផ្ញើ</button><button class="btn light" type="button" id="cancel-edit">Cancel</button></div>` : ''}
+      ${s.id === 'membership' && !editing ? '<div class="actions"><button class="btn sm" type="button" id="save-consent">Save declaration · រក្សាទុក</button></div>' : ''}
+    </section>`;
+  };
+
+  app.className = '';
+  app.innerHTML = `${header('My Profile', 'ព័ត៌មានផ្ទាល់ខ្លួន · Information locked')}
+    ${m.status === 'ACTIVE' ? '' : memberNotice(m)}
+    ${privacyBanner()}
+    <div class="notice grey"><h3>🔒 ព័ត៌មានត្រូវបានចាក់សោ · Information locked</h3>
+      <p>Your information was approved${days ? ` more than ${esc(days)} days ago` : ''} and can no longer be edited directly.
+      To correct something, tap <b>Request change</b> on that section – an admin will review it.
+      <br>ដើម្បីកែប្រែ សូមចុច «ស្នើកែប្រែ» នៅផ្នែកនោះ – អ្នកគ្រប់គ្រងនឹងពិនិត្យ។</p></div>
+    <form id="pf" novalidate>${SECTIONS.map(sectionCard).join('')}</form>
+    ${myDataCard(m)}`;
+  app.querySelectorAll('.notice a[href="#/profile"]').forEach((a) => a.remove());
+  bindSubmit(app);
+  bindMyData(() => viewProfile());
+  const form = $('#pf');
+  if (editing) form.querySelector(`[data-section="${editing}"]`).scrollIntoView({ block: 'start' });
+
+  form.addEventListener('click', async (e) => {
+    const sec = e.target.closest('[data-req-section]')?.dataset.reqSection;
+    if (sec) return viewProfileLocked(sec);
+    const cancelId = e.target.closest('[data-cancel-req]')?.dataset.cancelReq;
+    if (cancelId && confirm('Cancel this change request?')) {
+      try { await api(`/api/me/change-requests/${cancelId}`, { method: 'DELETE', body: {} }); toast('Request cancelled'); viewProfileLocked(); } catch (err) { toast(err.message, true); }
+    }
+  });
+  $('#cancel-edit')?.addEventListener('click', () => viewProfileLocked());
+  form.querySelectorAll('[data-req-upload]').forEach((inp) => inp.addEventListener('change', async () => {
+    const file = inp.files[0];
+    if (!file) return;
+    try {
+      toast('Uploading…');
+      const r = await api('/api/me/request-file', { body: { field: inp.dataset.reqUpload, dataUrl: await readFile(file) } });
+      pendingFiles[inp.dataset.reqUpload] = r.value;
+      const thumb = inp.closest('.upload').querySelector('.thumb');
+      thumb.innerHTML = file.type.startsWith('image/') ? `<img src="${esc(fileUrl(r.value))}" alt="">` : '📄';
+      toast('Attached – send the request to submit it');
+    } catch (err) { toast(err.message, true); }
+  }));
+  $('#send-req')?.addEventListener('click', async (e) => {
+    const changes = { ...collect(form, 'member', FIELDS.filter((f) => f.section === editing)), ...pendingFiles };
+    e.target.disabled = true;
+    try {
+      await api('/api/me/change-requests', { body: { section: editing, changes, note: $('#req-note').value } });
+      toast('Request sent for review ✓ · បានផ្ញើ');
+      viewProfileLocked();
+    } catch (err) { toast(err.message, true); e.target.disabled = false; }
+  });
+  $('#save-consent')?.addEventListener('click', async () => {
+    const consent = form.elements.consent.value;
+    if (consent !== CONSENT_YES && m.consent === CONSENT_YES
+      && !confirm('If you do not agree to the declaration your membership will become INACTIVE. Continue?')) return;
+    try {
+      state.member = (await api('/api/me', { method: 'PUT', body: { consent } })).member;
+      toast('Saved ✓');
+      viewProfile();
+    } catch (err) { toast(err.message, true); }
   });
 }
 
@@ -576,6 +709,10 @@ async function viewAssociation(edit = false) {
   const row = (k, v) => (v ? `<dt>${k}</dt><dd>${v}</dd>` : '');
   const qr = fileUrl(a.qr);
   const term = parseInt(a.term_months, 10);
+  const st = state.settings || {};
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const renewal = st.renewal_enabled && /^\d{2}-\d{2}$/.test(st.renewal_date || '')
+    ? `Renew every year by <b>${+st.renewal_date.slice(3)} ${MON[+st.renewal_date.slice(0, 2) - 1]}</b> · បន្តរៀងរាល់ឆ្នាំ` : '';
   app.innerHTML = `${header('Association', 'ព័ត៌មានសមាគម')}
     <section class="card" style="text-align:center">
       <img src="${IMG('logo.png')}" alt="" style="width:88px;height:88px">
@@ -587,7 +724,7 @@ async function viewAssociation(edit = false) {
       <h2>ការបង់ថ្លៃសមាជិកភាព <small>Membership fee payment</small></h2>
       <dl class="kv">
         ${row('Fee', esc(a.fee))}
-        ${row('Validity', term ? `${term} ខែ · months` : 'No expiry')}
+        ${row('Validity', renewal || (term ? `${term} ខែ · months` : 'No expiry'))}
         ${row('Bank', esc(a.bank_name))}
         ${row('Account name', esc(a.account_name))}
         ${row('Account no.', `<span class="mono-big">${esc(a.account_no)}</span>`)}
@@ -639,20 +776,29 @@ async function viewAdmin() {
          <button class="btn sm light" data-act="cancel">Cancel</button>`
       : `${count}<a class="btn sm" href="#/admin/new">+ Add</a>
          <button class="btn sm light" data-act="select">Select</button>
-         <button class="btn sm light" data-act="export-all" title="Download all members as Excel">Export all</button>`;
+         <button class="btn sm light" data-act="export-all" ${shown.length ? '' : 'disabled'} title="Download the members shown (current search and filter) as Excel">Export (${shown.length})</button>`;
   };
+  // Same rules as the server's export filter.
+  const matches = (m, f) => (f === 'ALL' ? true : f === 'DUP' ? m.dups?.length > 0 : f === 'CHG' ? m.pending_changes > 0
+    : f.startsWith('L:') ? m.level === f.slice(2) : m.status === f);
   const render = () => {
-    const counts = Object.fromEntries(STATUSES.map((s) => [s.key, rows.filter((m) => m.status === s.key).length]));
-    $('#filters').innerHTML = [['ALL', 'All', rows.length], ...STATUSES.map((s) => [s.key, s.key[0] + s.key.slice(1).toLowerCase(), counts[s.key]])]
-      .map(([k, l, n]) => `<button type="button" data-f="${k}" class="${filter === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('');
-    shown = filter === 'ALL' ? rows : rows.filter((m) => m.status === filter);
+    const chips = [['ALL', 'All'], ...STATUSES.map((s) => [s.key, s.key[0] + s.key.slice(1).toLowerCase()]),
+      ['DUP', '⚠ Duplicate'], ...(isAdmin() ? [['CHG', '✎ Change requests']] : []),
+      ...levels().filter((l) => l.key !== 'member').map((l) => [`L:${l.key}`, l.en])];
+    $('#filters').innerHTML = chips
+      .map(([k, l]) => [k, l, rows.filter((m) => matches(m, k)).length])
+      .filter(([k, , n]) => !k.startsWith('L:') || n > 0 || k === filter)
+      .map(([k, l, n]) => `<button type="button" data-f="${esc(k)}" class="${filter === k ? 'on' : ''}${k === 'DUP' || k === 'CHG' ? ' warn' : ''}">${esc(l)}<b>${n}</b></button>`).join('');
+    shown = rows.filter((m) => matches(m, filter));
     $('#list').innerHTML = shown.length ? shown.map((m) => `
       <a class="mrow${selecting && selected.has(m.id) ? ' sel' : ''}" href="#/admin/m/${m.id}" data-id="${m.id}">
         ${selecting ? `<input type="checkbox" class="pick" tabindex="-1" ${selected.has(m.id) ? 'checked' : ''} aria-label="Select">` : ''}
         <div class="avatar">${photoHtml(m)}</div>
         <div class="info"><div class="n1">${esc(m.name_kh)} · ${esc(m.name_en)}</div>
           <div class="n2">${esc(m.member_no || 'New applicant')} · ${esc(m.phone || m.email || '')}</div>
-          <div class="n2">${esc(m.workplace || '')}</div></div>
+          <div class="n2">${esc(m.workplace || '')}</div>
+          ${m.dups?.length || m.pending_changes ? `<div class="flags">${m.dups?.length ? `<span class="flag dup">⚠ Possible duplicate of ${esc(m.dups.map((d) => d.member_no || d.name_en).join(', '))}</span>` : ''}
+            ${m.pending_changes ? '<span class="flag chg">✎ Change request</span>' : ''}</div>` : ''}</div>
         ${chip(m)}
       </a>`).join('') : '<div class="empty">No members found</div>';
     renderToolbar();
@@ -692,7 +838,11 @@ async function viewAdmin() {
       render();
     }
     const exportWarn = 'The Excel file contains personal data. Only keep it as long as needed, store it securely and never share it publicly. The export is recorded in the audit log. Continue?';
-    if (act === 'export-all' && confirm(exportWarn)) location.href = '/api/export.xlsx';
+    if (act === 'export-all' && confirm(exportWarn)) {
+      const p = new URLSearchParams({ s: filter });
+      if ($('#q').value.trim()) p.set('q', $('#q').value.trim());
+      location.href = `/api/export.xlsx?${p}`;
+    }
     if (act === 'export-sel' && selected.size && confirm(exportWarn)) location.href = `/api/export.xlsx?ids=${[...selected].join(',')}`;
   });
 }
@@ -707,8 +857,11 @@ const AUDIT_LABEL = {
   'deletion.cancel': 'Cancelled deletion request', 'members.export': 'Excel export', 'backup.download': 'Backup downloaded',
   'backup.restore': 'Backup restored', 'role.change': 'Role changed', 'password.reset': 'Password reset by admin',
   'password.change': 'Password changed', 'user.create': 'System user created', 'user.delete': 'System user deleted',
-  'file.upload': 'File uploaded', 'file.view': 'Certificate viewed', 'association.update': 'Association info edited',
+  'file.upload': 'File uploaded', 'file.view': 'Document viewed', 'association.update': 'Association info edited',
   'event.create': 'Event created', 'event.update': 'Event edited', 'event.delete': 'Event deleted', 'retention.purge': 'Retention clean-up',
+  'event.join': 'Joined event', 'event.leave': 'Left event', 'event.bill_upload': 'Payment proof uploaded', 'event.export': 'Joiner list exported',
+  'change.request': 'Change requested', 'change.cancel': 'Change request cancelled', 'change.approve': 'Change approved', 'change.reject': 'Change rejected',
+  'member.not_duplicate': 'Marked “not a duplicate”', 'member.auto_inactive': 'Auto-inactive (not renewed)', 'settings.update': 'Settings changed',
 };
 function auditRow(r) {
   let detail = '';
@@ -727,7 +880,13 @@ function auditRow(r) {
 function staffNotice(m) {
   const del = m.deletion_requested_at
     ? `<div class="notice red"><h3>⚠ Deletion requested</h3><p>The member asked for their data to be deleted on <b>${esc(fmtDateTime(m.deletion_requested_at))}</b>${m.deletion_reason ? ` – “${esc(m.deletion_reason)}”` : ''}. Please delete the record (Danger zone) within 30 days.</p></div>` : '';
-  return del + statusNotice(m);
+  const dup = m.dups?.length
+    ? `<div class="notice orange"><h3>⚠ Possible duplicate · អាចស្ទួន</h3>
+      ${m.duplicate_email ? `<p>Imported a second time with the same email <b>${esc(m.duplicate_email)}</b> (no login was created for this copy).</p>` : ''}
+      <ul class="chg">${m.dups.map((d) => `<li><a href="#/admin/m/${d.id}">${esc(d.member_no || 'New applicant')} · ${esc(d.name_kh)} · ${esc(d.name_en)}</a> – ${esc(d.reasons.join(', '))}</li>`).join('')}</ul>
+      <p>Compare the records. Delete the duplicate (Danger zone), or mark it as a different person.</p>
+      ${isAdmin() ? '<div class="actions"><button class="btn sm light" type="button" id="not-dup">Not a duplicate · មិនស្ទួន</button></div>' : ''}</div>` : '';
+  return del + dup + statusNotice(m);
 }
 function statusNotice(m) {
   const s = statusOf(m);
@@ -735,8 +894,41 @@ function statusNotice(m) {
   if (s.key === 'REVIEW') return `<div class="notice orange"><h3>Waiting for review</h3><p>${m.applied_at ? `Submitted ${esc(fmtDateTime(m.applied_at))}. ` : ''}Check the information and documents, then approve or reject.</p></div>`;
   if (s.key === 'REJECTED') return `<div class="notice red"><h3>Rejected</h3>${reviewReason(m)}<p>${by}</p></div>`;
   if (s.key === 'PENDING') return `<div class="notice grey"><h3>Expired</h3><p>Membership expired on ${esc(fmtDate(m.expires_at))}. Waiting for the member to renew.</p></div>`;
-  if (s.key === 'INACTIVE') return `<div class="notice red"><h3>Inactive</h3><p>${m.consent === CONSENT_YES ? 'Deactivated.' : 'Member did not agree to the declaration.'}</p></div>`;
+  if (s.key === 'INACTIVE') return `<div class="notice red"><h3>Inactive</h3><p>${m.consent !== CONSENT_YES ? 'Member did not agree to the declaration.'
+    : m.inactive_reason === 'not_renewed' ? `Automatically set inactive on ${esc(fmtDate(m.inactive_at))}: the membership was not renewed for ${esc(state.settings?.inactive_years || '')} year(s).` : 'Deactivated.'}</p></div>`;
   return `<div class="notice green"><h3>Active</h3><p>Valid until ${m.expires_at ? esc(fmtDate(m.expires_at)) : 'no expiry'}.${m.review?.decision === 'approved' ? ` Approved${by}` : ''}</p></div>`;
+}
+
+// Change requests (admin review). withMember: show who asked (used in the Admin tab list).
+function changeRequestHtml(r, withMember = false) {
+  const sec = SECTIONS.find((s) => s.id === r.section);
+  return `<div class="creq" data-req="${r.id}">
+    <div class="a1"><b>${withMember ? `<a href="#/admin/m/${r.member_id}">${esc(r.member_no || '')} · ${esc(r.name_kh || '')} · ${esc(r.name_en || '')}</a><br>` : ''}
+      ${esc(sec?.kh || r.section)} · ${esc(sec?.en || '')}</b><span>${esc(fmtDateTime(r.created_at))}</span></div>
+    ${changeList(r)}
+    ${r.note ? `<p class="pre note">“${esc(r.note)}”</p>` : ''}
+    ${r.status === 'pending'
+      ? `<div class="actions"><button class="btn sm" style="background:var(--ok)" data-decide="approve">✓ Approve</button><button class="btn sm danger" data-decide="reject">✕ Reject</button></div>`
+      : `<p class="hint" style="text-align:left;margin:4px 0 0">${esc(r.status)} by ${esc(r.decided_by || '')} · ${esc(fmtDateTime(r.decided_at))}${r.reason ? ` – ${esc(r.reason)}` : ''}</p>`}
+  </div>`;
+}
+function bindChangeDecisions(root, onDone) {
+  root.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-decide]');
+    if (!b) return;
+    const id = b.closest('[data-req]').dataset.req;
+    const decision = b.dataset.decide;
+    let reason = '';
+    if (decision === 'reject') {
+      reason = prompt('Reason for rejecting (the member will see it):') || '';
+      if (!reason.trim()) return;
+    } else if (!confirm('Apply these changes to the member’s record?')) return;
+    try {
+      await api(`/api/change-requests/${id}/decision`, { body: { decision, reason } });
+      toast(decision === 'approve' ? 'Change applied ✓' : 'Change rejected');
+      onDone();
+    } catch (err) { toast(err.message, true); }
+  });
 }
 
 function rejectDialog(id, onDone) {
@@ -794,6 +986,7 @@ async function viewAdminEdit(id) {
         <form id="af" novalidate>${formHtml(m, role)}
           ${admin ? `<div class="sticky-save"><button class="btn block" type="submit">${isNew ? 'Create member' : 'Save changes'}</button></div>` : ''}
         </form>
+        ${admin && !isNew ? `<section class="card" id="mreqs" hidden><h2>✎ Change requests <small>Submitted by the member</small></h2><div id="mreqbody"></div></section>` : ''}
         ${admin && !isNew ? `<details class="card history" id="history"><summary><b>Record history</b> <small>Who viewed or changed this record</small></summary><div id="histbody"><div class="spin"></div></div></details>
         <details class="danger"><summary>Danger zone · លុបសមាជិក</summary>
           <p>Deleting removes this member, their login and uploaded files permanently. To confirm, type <b>${esc(m.member_no || m.email)}</b> below.</p>
@@ -811,6 +1004,21 @@ async function viewAdminEdit(id) {
     } catch (e) { $('#histbody').textContent = e.message; }
   });
   const reload = () => viewAdminEdit(id);
+  if (admin && !isNew) {
+    api(`/api/change-requests?member=${id}&status=all`).then((rows) => {
+      const open = rows.filter((r) => r.status === 'pending');
+      const shownRows = open.length ? open : rows.filter((r) => ['approved', 'rejected'].includes(r.status)).slice(0, 3);
+      if (!shownRows.length || !$('#mreqs')) return;
+      $('#mreqs').hidden = false;
+      $('#mreqbody').innerHTML = shownRows.map((r) => changeRequestHtml(r)).join('');
+      if (open.length) $('#mreqs').scrollIntoView({ block: 'nearest' });
+    }).catch(() => {});
+    bindChangeDecisions($('#mreqs'), reload);
+  }
+  $('#not-dup')?.addEventListener('click', async () => {
+    if (!confirm('These records are different people? The warning will be hidden for these pairs.')) return;
+    try { await api(`/api/members/${id}/not-duplicate`, { body: {} }); toast('Marked as not a duplicate'); reload(); } catch (err) { toast(err.message, true); }
+  });
   if (isNew) app.querySelectorAll('[data-upload]').forEach((el) => el.closest('label').replaceWith('Save first, then upload'));
   const form = $('#af');
   if (admin) bindUploads(form, m.id, reload);
@@ -860,6 +1068,88 @@ async function viewAdminEdit(id) {
 }
 
 // ---------- admin section: system users + backup / restore ----------
+// Admin settings: profile edit window, annual renewal, auto-inactive, member levels.
+async function loadSettingsForm(el) {
+  // Fresh element each load so event listeners never stack up.
+  const form = el.cloneNode(false);
+  el.replaceWith(form);
+  let s;
+  try { s = await api('/api/settings'); } catch (e) { form.innerHTML = `<p class="hint">${esc(e.message)}</p>`; return; }
+  const [mm, dd] = (s.renewal_date || '01-01').split('-');
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const levelRow = (l) => `<div class="lvl-row" data-key="${esc(l.key || '')}">
+      <span class="lvl-dot" style="--lvl:${safeColor(l.color) || '#2a74c9'}"></span>
+      <input name="kh" value="${esc(l.kh || '')}" placeholder="ខ្មែរ" aria-label="Khmer name" required>
+      <input name="en" value="${esc(l.en || '')}" placeholder="English" aria-label="English name" required>
+      <label class="lvl-color" title="Card colour"><input type="checkbox" name="custom" ${l.color ? 'checked' : ''}> <input type="color" name="color" value="${safeColor(l.color) || '#2a74c9'}" ${l.color ? '' : 'disabled'}></label>
+      ${l.key === 'member' ? '<span class="lvl-fixed" title="Default level">default</span>' : '<button type="button" class="icon-btn" data-rm title="Remove level">✕</button>'}
+    </div>`;
+  form.innerHTML = `<h2>ការកំណត់ <small>Settings</small></h2>
+    <h3 class="sub">✎ Profile editing · ការកែប្រែព័ត៌មាន</h3>
+    <label class="field"><span class="lbl">Members can edit their information for<small>Days after approval. After that the profile is locked (display only) and members send a change request per section for an admin to approve. Leave empty for no limit.</small></span>
+      <div class="unit" style="max-width:260px"><input name="edit_days" inputmode="numeric" pattern="\\d*" value="${esc(s.edit_days ?? '')}" placeholder="no limit"><span>days · ថ្ងៃ</span></div></label>
+    <h3 class="sub">↻ Annual renewal · ការបន្តប្រចាំឆ្នាំ</h3>
+    <label class="check"><input type="checkbox" name="renewal_enabled" ${s.renewal_enabled ? 'checked' : ''}><span>Every year on this date, members who have not renewed become <b>PENDING</b> · បន្តសមាជិកភាពប្រចាំឆ្នាំ</span></label>
+    <div class="grid2 indent two" data-dep="renewal_enabled">
+      <label class="field"><span class="lbl">Month</span><select name="mm">${MONTHS.map((n, i) => `<option value="${String(i + 1).padStart(2, '0')}" ${+mm === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label class="field"><span class="lbl">Day</span><select name="dd">${Array.from({ length: 31 }, (_, i) => `<option ${+dd === i + 1 ? 'selected' : ''}>${String(i + 1).padStart(2, '0')}</option>`).join('')}</select></label>
+    </div>
+    <p class="hint indent" data-dep="renewal_enabled" style="text-align:left;margin-top:0">Members approved or renewed within 60 days before the date stay active until the following year.</p>
+    <label class="check"><input type="checkbox" name="inactive_enabled" ${s.inactive_enabled ? 'checked' : ''}><span>Automatically set <b>INACTIVE</b> when a member stays PENDING for · អសកម្មដោយស្វ័យប្រវត្តិ</span></label>
+    <div class="indent" data-dep="inactive_enabled"><div class="unit" style="max-width:260px"><input name="inactive_years" inputmode="numeric" value="${esc(s.inactive_years || '2')}"><span>years · ឆ្នាំ</span></div></div>
+    <h3 class="sub">★ Member levels · កម្រិតសមាជិក</h3>
+    <p class="hint" style="text-align:left;margin-top:0">Shown on the member card. Tick the colour box to give a level its own card colour (otherwise the logo blue is used).</p>
+    <div id="lvls">${s.levels.map(levelRow).join('')}</div>
+    <button type="button" class="btn sm light" id="addlvl">+ Add level</button>
+    <button class="btn block" type="submit" style="margin-top:14px">Save settings</button>`;
+  const deps = () => form.querySelectorAll('[data-dep]').forEach((el) => {
+    const on = form.elements[el.dataset.dep].checked;
+    el.classList.toggle('off', !on);
+    el.querySelectorAll('input,select').forEach((i) => (i.disabled = !on));
+  });
+  deps();
+  form.addEventListener('change', (e) => {
+    if (e.target.name === 'custom') {
+      const row = e.target.closest('.lvl-row');
+      row.querySelector('[name=color]').disabled = !e.target.checked;
+    }
+    if (e.target.name === 'color') e.target.closest('.lvl-row').querySelector('.lvl-dot').style.setProperty('--lvl', e.target.value);
+    deps();
+  });
+  form.addEventListener('click', (e) => {
+    if (e.target.closest('[data-rm]')) {
+      const row = e.target.closest('.lvl-row');
+      if (confirm('Remove this level? Members on it go back to the default level when you save.')) row.remove();
+    }
+    if (e.target.id === 'addlvl') {
+      $('#lvls').insertAdjacentHTML('beforeend', levelRow({ key: '', kh: '', en: '', color: '#0f766e' }));
+      $('#lvls').lastElementChild.querySelector('[name=kh]').focus();
+    }
+  });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = form.elements;
+    const body = {
+      edit_days: f.edit_days.value.trim(),
+      renewal_enabled: f.renewal_enabled.checked,
+      inactive_enabled: f.inactive_enabled.checked,
+      levels: [...form.querySelectorAll('.lvl-row')].map((r) => ({
+        key: r.dataset.key, kh: r.querySelector('[name=kh]').value, en: r.querySelector('[name=en]').value,
+        color: r.querySelector('[name=custom]').checked ? r.querySelector('[name=color]').value : '',
+      })),
+    };
+    if (body.renewal_enabled) body.renewal_date = `${f.mm.value}-${f.dd.value}`;
+    if (body.inactive_enabled) body.inactive_years = f.inactive_years.value;
+    if (body.renewal_enabled && !s.renewal_enabled && !confirm('Turn on annual renewal? Members whose membership started before the last renewal date will become PENDING until they are renewed.')) return;
+    try {
+      const saved = await api('/api/settings', { method: 'PUT', body });
+      state.settings = { ...state.settings, ...saved };
+      toast('Settings saved ✓');
+      loadSettingsForm(form);
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
 async function viewSystem() {
   app.className = '';
   app.innerHTML = `${header('Admin', 'គ្រប់គ្រងប្រព័ន្ធ · System')}
@@ -878,6 +1168,8 @@ async function viewSystem() {
       <p class="hint" style="text-align:left">To give a <b>member</b> moderator/admin rights, open them in Members → Account → Role.</p>
     </form>
     <section class="card" id="privreq"><h2>សំណើឯកជនភាព <small>Privacy requests</small></h2><div id="reqbody"><div class="spin"></div></div></section>
+    <section class="card" id="chgreq"><h2>សំណើកែប្រែព័ត៌មាន <small>Change requests from members</small></h2><div id="chgbody"><div class="spin"></div></div></section>
+    <form class="card" id="settings" autocomplete="off"><h2>ការកំណត់ <small>Settings</small></h2><div class="spin"></div></form>
     <section class="card"><h2>បម្រុងទុក និង ស្ដារ <small>Backup &amp; restore</small></h2>
       <p style="font-size:14px;margin-top:0">The backup contains the whole database (members, logins, events, association info) and all uploaded photos/files.
         It contains personal data – <b>set a passphrase</b> so the file is encrypted, and store it safely.</p>
@@ -905,6 +1197,15 @@ async function viewSystem() {
         ${r.reason ? `<div class="n2">“${esc(r.reason)}”</div>` : ''}</div><span class="chip c-red">DELETE</span></a>`).join('')
       : '<p class="hint" style="text-align:left;margin:0">No open requests ✓</p>';
   }).catch((e) => toast(e.message, true));
+
+  // Change requests from members with a locked profile.
+  const loadChanges = () => api('/api/change-requests?status=pending').then((rows) => {
+    $('#chgbody').innerHTML = rows.length ? rows.map((r) => changeRequestHtml(r, true)).join('')
+      : '<p class="hint" style="text-align:left;margin:0">No open requests ✓</p>';
+  }).catch((e) => toast(e.message, true));
+  loadChanges();
+  bindChangeDecisions($('#chgreq'), loadChanges);
+  loadSettingsForm($('#settings'));
 
   // Audit log with search and paging.
   let lastId = null;
@@ -1017,6 +1318,9 @@ const fmtEventTime = (e) => {
 };
 const seatsText = (e) => (e.seats ? `${e.joined_count} / ${e.seats} joined · ${e.seats_left} left` : `${e.joined_count} joined · unlimited seats`);
 const seatBar = (e) => (e.seats ? `<div class="bar"><i style="width:${Math.min(100, (e.joined_count / e.seats) * 100)}%"></i></div>` : '');
+const priceText = (e) => (e.price > 0 ? `${Number(e.price).toLocaleString('en-US', { maximumFractionDigits: 2 })} ${e.currency || 'USD'}` : 'Free · ឥតគិតថ្លៃ');
+const closeText = (e) => new Date(e.registration_closes_at).toLocaleString('en-GB', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+let billBusy = 0;
 
 let livePoll;
 const mapBtn = (e, cls = 'btn sm light') => (e.map_link && /^https:\/\//.test(e.map_link)
@@ -1032,7 +1336,8 @@ function eventCard(e) {
   const badge = e.phase === 'ongoing' ? '<span class="chip c-live"><i class="live-dot"></i>LIVE</span>'
     : e.joined ? '<span class="chip c-green">Joined</span>'
     : e.phase === 'past' ? '<span class="chip c-grey">Ended</span>'
-    : e.seats && !e.seats_left ? '<span class="chip c-red">Full</span>' : '';
+    : e.seats && !e.seats_left ? '<span class="chip c-red">Full</span>'
+    : !e.registration_open ? '<span class="chip c-grey">Closed</span>' : '';
   return `
     <a class="ecard ${e.phase}" href="#/events/${e.id}">
       <div class="edate"><b>${esc(new Date(e.starts_at).toLocaleDateString('en-GB', { timeZone: TZ, day: 'numeric' }))}</b>
@@ -1040,7 +1345,10 @@ function eventCard(e) {
       <div class="info"><div class="n1">${esc(e.title)}</div>
         <div class="n2">${ICON.clock}${esc(fmtEventTime(e))}</div>
         ${e.location ? `<div class="n2">${ICON.pin}${esc(e.location)}</div>` : ''}
-        <div class="n2">${ICON.seat}${esc(seatsText(e))}</div>${seatBar(e)}</div>
+        <div class="n2">${ICON.seat}${esc(seatsText(e))}</div>
+        <div class="n2">💵 ${esc(priceText(e))}</div>
+        ${e.phase === 'upcoming' && e.close_days > 0
+          ? `<div class="n2 ${e.registration_open ? '' : 'closed'}">⏳ ${e.registration_open ? 'Register by' : 'Registration closed'} ${esc(closeText(e))}</div>` : ''}${seatBar(e)}</div>
       ${badge}
     </a>`;
 }
@@ -1081,6 +1389,16 @@ async function viewEvent(id) {
     const member = state.member;
     const full = e.seats && !e.seats_left;
     const phase = PHASES.find((p) => p.key === e.phase);
+    const paid = e.price > 0;
+    const showBill = paid || e.participants.some((p) => p.bill);
+    const billBox = e.joined && paid && e.phase !== 'past' ? `
+      <div class="notice ${e.my_bill ? 'green' : 'orange'} bill-box">
+        <b>${e.my_bill ? '✓ Payment proof uploaded · បានផ្ញើវិក្កយបត្រ' : '💵 Payment proof · វិក្កយបត្របង់ប្រាក់'}</b>
+        <p>${e.my_bill ? `Uploaded ${esc(fmtDateTime(e.my_bill_at))}. <a href="${esc(fileUrl(e.my_bill))}" target="_blank" rel="noopener noreferrer">View</a> · You can replace it if needed.`
+          : `Please pay <b>${esc(priceText(e))}</b> (see <a href="#/association">bank details</a>) and upload a photo of the receipt.`}</p>
+        <label class="btn sm ${e.my_bill ? 'light' : ''} upl">${e.my_bill ? 'Replace proof' : '⬆ Upload proof'}<input type="file" id="bill" accept="image/*,application/pdf" hidden></label>
+      </div>` : '';
+    const regClosed = canJoin && !e.joined && !e.registration_open;
     app.innerHTML = `${header('Event', 'ព្រឹត្តិការណ៍', '/events')}
       <section class="card event-detail">
         <span class="chip ${e.phase === 'ongoing' ? 'c-live' : e.phase === 'past' ? 'c-grey' : 'c-green'}" style="display:inline-flex;margin-bottom:8px">
@@ -1089,25 +1407,52 @@ async function viewEvent(id) {
         <dl class="kv">
           <dt>${ICON.clock}</dt><dd>${esc(fmtEventTime(e))}</dd>
           ${e.location || e.map_link ? `<dt>${ICON.pin}</dt><dd>${esc(e.location || '')}${mapBtn(e) ? `<div style="margin-top:6px">${mapBtn(e)}</div>` : ''}</dd>` : ''}
+          <dt>💵</dt><dd><b>${esc(priceText(e))}</b></dd>
+          ${e.phase === 'upcoming' && e.close_days > 0 ? `<dt>⏳</dt><dd>${e.registration_open ? 'Registration closes' : '<b class="closed">Registration closed</b>'} ${esc(closeText(e))}
+            <small class="muted">(${e.close_days} day${e.close_days === 1 ? '' : 's'} before the start)</small></dd>` : ''}
           <dt>${ICON.seat}</dt><dd><span class="live-dot"></span><span id="seats">${esc(seatsText(e))}</span>${seatBar(e)}</dd>
         </dl>
         ${e.description ? `<p class="pre" style="font-size:14px;line-height:1.7">${esc(e.description)}</p>` : ''}
         ${canJoin ? (e.joined
-          ? '<div class="notice green" style="margin-bottom:0"><b>✓ You joined this event</b><div class="actions"><button class="btn sm light" id="leave">Cancel my seat</button></div></div>'
+          ? `<div class="notice green" style="margin-bottom:0"><b>✓ You joined this event</b><div class="actions"><button class="btn sm light" id="leave">Cancel my seat</button></div></div>${billBox}`
+          : regClosed ? `<div class="notice grey" style="margin-bottom:0"><b>Registration closed · ផុតកំណត់ចុះឈ្មោះ</b><br>Registration ended on ${esc(closeText(e))}.</div>`
           : member?.status !== 'ACTIVE' ? '<div class="notice grey" style="margin-bottom:0">Only ACTIVE members can join events.</div>'
-          : `<button class="btn block" id="join" ${full ? 'disabled' : ''}>${full ? 'Event is full' : 'Join this event · ចូលរួម'}</button>`)
+          : `<button class="btn block" id="join" ${full ? 'disabled' : ''}>${full ? 'Event is full' : `Join this event · ចូលរួម${paid ? ` (${esc(priceText(e))})` : ''}`}</button>`)
           : e.phase === 'past' ? '<div class="notice grey" style="margin-bottom:0">This event has ended.</div>'
-          : e.phase === 'ongoing' ? `<div class="notice green" style="margin-bottom:0">${e.joined ? '<b>✓ You joined this event.</b> ' : ''}This event is happening now.</div>` : ''}
+          : e.phase === 'ongoing' ? `<div class="notice green" style="margin-bottom:0">${e.joined ? '<b>✓ You joined this event.</b> ' : ''}This event is happening now.</div>${billBox}` : ''}
       </section>
-      <section class="card"><h2>អ្នកចូលរួម <small>Joined members (${e.joined_count}) · live</small></h2>
+      <section class="card"><div class="sec-head"><h2>អ្នកចូលរួម <small>Joined members (${e.joined_count}) · live</small></h2>
+        ${isStaff() && e.participants.length ? '<button class="btn sm light" type="button" id="jexport">⬇ Export to Excel</button>' : ''}</div>
         ${!isStaff() ? `<p class="hint" style="text-align:left;margin:0"><b>${e.joined_count}</b> member${e.joined_count === 1 ? ' has' : 's have'} joined${e.joined ? ', including you' : ''}.
             For privacy, only the organisers can see the list of names.</p>`
-        : e.participants.length ? `<div class="plist">${e.participants.map((p, i) => `
-          <div class="prow"><span class="pn">${i + 1}</span><div class="info"><div class="n1">${esc(p.name_kh)} · ${esc(p.name_en)}</div>
-          ${p.member_no ? `<div class="n2">${esc(p.member_no)} · ${esc(p.phone || '')}</div>` : ''}</div></div>`).join('')}</div>`
+        : e.participants.length ? `${paid ? `<p class="hint" style="text-align:left;margin-top:0">Payment proofs: <b>${e.participants.filter((p) => p.bill).length} / ${e.participants.length}</b> uploaded</p>` : ''}
+          <div class="plist">${e.participants.map((p, i) => `
+          <div class="prow"><span class="pn">${i + 1}</span><div class="info">
+            <div class="n1">${p.member_id ? `<a href="#/admin/m/${p.member_id}">` : ''}${esc(p.name_kh)} · ${esc(p.name_en)}${p.member_id ? '</a>' : ''}</div>
+            <div class="n2">${esc(p.member_no || '—')} · ${esc(p.gender || '—')}${p.phone ? ` · ${esc(p.phone)}` : ''}</div>
+            ${p.workplace ? `<div class="n2">🏥 ${esc(p.workplace)}</div>` : ''}
+            ${p.training ? `<div class="n2">🎓 ${esc(p.training)}</div>` : ''}</div>
+            ${showBill ? (p.bill ? `<a class="bill-thumb" href="${esc(fileUrl(p.bill))}" target="_blank" rel="noopener noreferrer" title="Payment proof ${esc(fmtDateTime(p.bill_at))}">
+                ${/\.pdf$/i.test(p.bill) ? '<span>PDF</span>' : `<img src="${esc(fileUrl(p.bill))}" alt="Bill" loading="lazy" data-rm>`}<small>Bill ✓</small></a>`
+              : '<span class="chip c-grey">No bill</span>') : ''}
+          </div>`).join('')}</div>`
           : '<div class="empty" style="padding:16px 0">No one has joined yet</div>'}
       </section>
       ${isStaff() ? `<div class="actions"><a class="btn light" href="#/events/${e.id}/edit">Edit event</a><button class="btn danger" id="edel">Delete event</button></div>` : ''}`;
+    $('#jexport')?.addEventListener('click', () => {
+      if (confirm('The Excel file contains personal data of the members who joined. Keep it safe and delete it when no longer needed. Continue?')) location.href = `/api/events/${id}/export.xlsx`;
+    });
+    $('#bill')?.closest('label').addEventListener('click', () => (billBusy = Date.now()));
+    $('#bill')?.addEventListener('change', async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return (billBusy = 0);
+      try {
+        await api(`/api/events/${id}/bill`, { body: { dataUrl: await readFile(file, 1600) } });
+        toast('Payment proof uploaded ✓');
+      } catch (err) { toast(err.message, true); }
+      billBusy = 0;
+      refresh();
+    });
     const act = async (method) => {
       try { await api(`/api/events/${id}/join`, { method, body: {} }); toast(method === 'POST' ? 'Joined ✓' : 'Seat cancelled'); refresh(); } catch (err) { toast(err.message, true); refresh(); }
     };
@@ -1126,16 +1471,19 @@ async function viewEvent(id) {
   clearInterval(livePoll);
   livePoll = setInterval(() => {
     if (!location.hash.startsWith(`#/events/${id}`) || location.hash.endsWith('/edit')) return clearInterval(livePoll);
-    if (!document.querySelector('dialog[open], .tour')) refresh();
+    if (!document.querySelector('dialog[open], .tour') && Date.now() - billBusy > 120000) refresh();
   }, 5000);
 }
 
 async function viewEventEdit(id) {
   app.className = '';
   const isNew = id === 'new';
-  let e = { title: '', location: '', map_url: '', description: '', seats: 0, starts_at: '', ends_at: '' };
+  let e = { title: '', location: '', map_url: '', description: '', seats: 0, price: 0, close_days: 0, starts_at: '', ends_at: '' };
+  let currency = 'USD';
   if (!isNew) {
-    try { e = await api(`/api/events/${id}`); } catch (err) { toast(err.message, true); return go('/events'); }
+    try { e = await api(`/api/events/${id}`); currency = e.currency || currency; } catch (err) { toast(err.message, true); return go('/events'); }
+  } else {
+    try { currency = (await api('/api/association')).currency || currency; } catch { /* default */ }
   }
   app.innerHTML = `${header(isNew ? 'New event' : 'Edit event', 'ព្រឹត្តិការណ៍', isNew ? '/events' : `/events/${id}`)}
     <form class="card" id="ef" novalidate>
@@ -1150,10 +1498,26 @@ async function viewEventEdit(id) {
       </div>
       <label class="field"><span class="lbl">ចំនួនកៅអី<small>Seats available (0 = unlimited)</small></span>
         <div class="unit"><input type="number" name="seats" min="0" step="1" inputmode="numeric" value="${esc(e.seats)}"><span>កៅអី</span></div></label>
+      <div class="grid2">
+        <label class="field"><span class="lbl">តម្លៃ<small>Price per member (0 = free)</small></span>
+          <div class="unit"><input type="number" name="price" min="0" step="0.01" inputmode="decimal" value="${esc(e.price || 0)}"><span>${esc(currency)}</span></div></label>
+        <label class="field"><span class="lbl">បិទការចុះឈ្មោះ<small>Close registration … days before the start (0 = until it starts)</small></span>
+          <div class="unit"><input type="number" name="close_days" min="0" max="365" step="1" inputmode="numeric" value="${esc(e.close_days || 0)}"><span>ថ្ងៃ · days</span></div></label>
+      </div>
+      <p class="hint" id="closehint" style="text-align:left;margin:-6px 0 14px"></p>
       <label class="field"><span class="lbl">ការពិពណ៌នា<small>Description</small></span><textarea name="description" rows="6">${esc(e.description)}</textarea></label>
       <button class="btn block" type="submit">${isNew ? 'Publish event' : 'Save changes'}</button>
     </form>`;
   const f = $('#ef').elements;
+  const closeHint = () => {
+    const s = fromLocalInput(f.starts_at.value);
+    const d = parseInt(f.close_days.value, 10) || 0;
+    $('#closehint').textContent = s && d > 0
+      ? `Members can join until ${closeText({ registration_closes_at: new Date(new Date(s).getTime() - d * 864e5).toISOString() })}.` : '';
+  };
+  closeHint();
+  f.starts_at.addEventListener('input', closeHint);
+  f.close_days.addEventListener('input', closeHint);
   $('#testmap').addEventListener('click', () => {
     const url = f.map_url.value.trim() || (f.location.value.trim()
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(f.location.value.trim())}` : '');
@@ -1164,6 +1528,7 @@ async function viewEventEdit(id) {
     ev.preventDefault();
     const body = {
       title: f.title.value, location: f.location.value, map_url: f.map_url.value.trim(), description: f.description.value, seats: f.seats.value,
+      price: f.price.value, close_days: f.close_days.value,
       starts_at: fromLocalInput(f.starts_at.value), ends_at: fromLocalInput(f.ends_at.value),
     };
     try {
@@ -1236,7 +1601,9 @@ function viewRegister() {
         name_kh: f.name_kh.value, name_en: f.name_en.value, email: f.email.value, phone: f.phone.value, password: f.password.value, consent: true, privacy: true,
       } });
       state.user = r.user;
-      state.member = (await api('/api/me')).member;
+      const me = await api('/api/me');
+      state.member = me.member;
+      state.settings = me.settings;
       toast('Registered ✓ Please complete your profile');
       go('/profile');
     } catch (err) { $('#rerr').textContent = err.message; }
@@ -1273,6 +1640,7 @@ async function afterLogin(user) {
   state.user = user;
   const me = await api('/api/me');
   state.member = me.member;
+  state.settings = me.settings;
   go(user.must_change ? '/password' : home());
 }
 
@@ -1299,6 +1667,7 @@ async function route() {
       const me = await api('/api/me');
       state.user = me.user;
       state.member = me.member;
+      state.settings = me.settings;
     } catch { /* not signed in */ }
   }
   if (!state.user) {

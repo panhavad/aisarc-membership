@@ -8,7 +8,7 @@ import {
 } from '../public/fields.js';
 import {
   db, UPLOAD_DIR, getMember, listMembers, saveMember, deleteMember, getAssociation, saveAssociation,
-  termMonths, addMonths, toNumberText,
+  addMonths, toNumberText, getSettings, saveSettings, memberContext, duplicateMap, UPLOAD_NAME,
 } from './db.js';
 import {
   hashPassword, verifyPassword, needsRehash, setSession, clearSession, requireUser, requireAdmin, requireStaff,
@@ -101,10 +101,11 @@ app.use('/api', (req, res, next) => {
   res.status(415).json({ error: 'JSON required' });
 });
 // Large bodies only where files are uploaded (signed-in users); everything else is capped small.
-const BIG_JSON = new Set(['/api/upload', '/api/association/qr']);
+const BIG_JSON = new Set(['/api/upload', '/api/association/qr', '/api/me/request-file']);
+const isBig = (p) => BIG_JSON.has(p) || /^\/api\/events\/\d+\/bill$/.test(p);
 const jsonSmall = express.json({ limit: '64kb' });
 const jsonBig = express.json({ limit: '12mb' });
-app.use((req, res, next) => (BIG_JSON.has(req.path) ? jsonBig : jsonSmall)(req, res, next));
+app.use((req, res, next) => (isBig(req.path) ? jsonBig : jsonSmall)(req, res, next));
 
 const userPayload = (u) => ({ id: u.id, username: u.username, role: u.role, member_id: u.member_id, must_change: !!u.must_change });
 const nowIso = () => new Date().toISOString();
@@ -115,6 +116,7 @@ function cleanValue(f, v) {
   if (f.type === 'email') val = val.toLowerCase();
   if (f.type === 'number') val = toNumberText(val);
   if (f.type === 'select' && val && !f.options.includes(val)) return undefined;
+  if (f.type === 'level' && !getSettings().levels.some((l) => l.key === val)) return undefined;
   if (f.type === 'datetime' && val) {
     const d = new Date(val);
     if (isNaN(d)) return undefined;
@@ -178,14 +180,19 @@ function syncUsername(memberId, email) {
   } else if (!u) db.prepare("INSERT INTO users (username, role, member_id) VALUES (?, 'member', ?)").run(email, memberId);
 }
 
-// Approve / activate: assigns membership no. + join date (first time) and extends validity by one term.
+// Approve / activate: assigns membership no. + join date (first time) and starts a new validity period
+// (until the next annual renewal date, or one membership term).
 function activate(id, by) {
   const m = getMember(id);
-  const term = termMonths();
-  const fields = { status: 'ACTIVE', review: { decision: 'approved', by, at: nowIso() } };
-  if (term) {
+  const now = nowIso();
+  const ctx = memberContext();
+  const fields = {
+    status: 'ACTIVE', review: { decision: 'approved', by, at: now }, renewed_at: now,
+    approved_at: m.approved_at || now, inactive_reason: '',
+  };
+  if (!ctx.renewal && ctx.term) {
     const stillValid = m.expires_at && new Date(m.expires_at) > new Date();
-    fields.expires_at = stillValid ? m.expires_at : addMonths(nowIso(), term);
+    fields.expires_at = stillValid ? m.expires_at : addMonths(now, ctx.term);
   }
   saveMember(id, fields);
   return getMember(id);
@@ -328,8 +335,21 @@ app.post('/api/logout', (req, res) => {
 });
 
 // ---------- signed-in user ----------
+// Settings every signed-in user may know (levels for the card colour, renewal / edit rules).
+const publicSettings = () => {
+  const s = getSettings();
+  return {
+    levels: s.levels, edit_days: s.edit_days,
+    renewal_enabled: s.renewal_enabled, renewal_date: s.renewal_date,
+    inactive_enabled: s.inactive_enabled, inactive_years: s.inactive_years,
+  };
+};
+
 app.get('/api/me', requireUser, (req, res) => {
-  res.json({ user: userPayload(req.user), member: req.user.member_id ? getMember(req.user.member_id) : null, privacy_version: PRIVACY_VERSION });
+  res.json({
+    user: userPayload(req.user), member: req.user.member_id ? getMember(req.user.member_id) : null,
+    privacy_version: PRIVACY_VERSION, settings: publicSettings(),
+  });
 });
 
 const changedKeys = (rec, existing) => Object.keys(rec).filter((k) => String(rec[k] ?? '') !== String(existing[k] ?? ''));
@@ -338,6 +358,13 @@ app.put('/api/me', requireUser, (req, res) => {
   if (!req.user.member_id) return res.status(400).json({ error: 'No member profile' });
   const existing = getMember(req.user.member_id);
   const rec = pick(req.body, 'member');
+  // After the edit window only the declaration consent can still be changed directly (withdrawing
+  // consent is a right); everything else must go through a change request reviewed by an admin.
+  if (existing.lock.locked) {
+    const others = changedKeys(rec, existing).filter((k) => k !== 'consent');
+    if (others.length) return res.status(403).json({ error: 'Your information is locked. Use “Request change” on the section instead.', locked: true });
+    for (const k of Object.keys(rec)) if (k !== 'consent') delete rec[k];
+  }
   const err = validate(rec, existing);
   if (err) return res.status(400).json({ error: err });
   applyConsent(rec, existing);
@@ -345,6 +372,84 @@ app.put('/api/me', requireUser, (req, res) => {
   saveMember(existing.id, rec);
   if (changed.length) audit(req, rec.consent && rec.consent !== existing.consent ? 'consent.change' : 'member.self_update', `member:${existing.id}`, { fields: changed });
   res.json({ member: getMember(existing.id) });
+});
+
+// ---------- change requests (locked profiles) ----------
+const REQUEST_SECTIONS = ['personal', 'contact', 'work', 'reg'];
+const requestFields = (section) => FIELDS.filter((f) => f.section === section && canEdit(f, 'member'));
+const fileOwner = (name) => {
+  const p = name.split('-');
+  return name.startsWith('ev') ? Number(p[1]) : Number(p[0]);
+};
+const fileRefs = (changes) => Object.values(changes || {}).filter((v) => typeof v === 'string' && v.startsWith('file:'));
+
+function requestView(r) {
+  return { ...r, changes: JSON.parse(r.changes), previous: JSON.parse(r.previous) };
+}
+
+// Upload a file that will only be used if an admin approves the change request.
+app.post('/api/me/request-file', requireUser, (req, res) => {
+  const f = Object.hasOwn(FIELD_MAP, req.body?.field) ? FIELD_MAP[req.body.field] : null;
+  if (!req.user.member_id) return res.status(400).json({ error: 'No member profile' });
+  if (!f || !['file', 'photo'].includes(f.type)) return res.status(400).json({ error: 'Invalid field' });
+  try {
+    const name = storeDataUrl(req.body?.dataUrl, `${req.user.member_id}-${f.key}`, f.type === 'file');
+    res.json({ value: `file:${name}` });
+  } catch (e) {
+    if (!(e instanceof UserError)) console.error(e);
+    res.status(400).json({ error: e instanceof UserError ? e.message : 'Upload failed' });
+  }
+});
+
+app.get('/api/me/change-requests', requireUser, (req, res) => {
+  if (!req.user.member_id) return res.json([]);
+  res.json(db.prepare('SELECT * FROM change_requests WHERE member_id = ? ORDER BY id DESC LIMIT 50').all(req.user.member_id).map(requestView));
+});
+
+app.post('/api/me/change-requests', requireUser, (req, res) => {
+  if (!req.user.member_id) return res.status(400).json({ error: 'No member profile' });
+  const m = getMember(req.user.member_id);
+  const section = String(req.body?.section || '');
+  if (!REQUEST_SECTIONS.includes(section)) return res.status(400).json({ error: 'Invalid section' });
+  const changes = {};
+  const previous = {};
+  for (const f of requestFields(section)) {
+    if (!Object.hasOwn(req.body?.changes || {}, f.key)) continue;
+    let val = req.body.changes[f.key];
+    if (['file', 'photo'].includes(f.type)) {
+      // Only files this member uploaded via /api/me/request-file for this field.
+      const name = String(val || '').replace(/^file:/, '');
+      if (!new RegExp(`^${m.id}-${f.key}-[0-9a-f]+\\.(jpg|png|webp|pdf)$`).test(name) || !fs.existsSync(path.join(UPLOAD_DIR, name))) continue;
+      val = `file:${name}`;
+    } else {
+      val = cleanValue(f, val);
+      if (val === undefined) continue;
+    }
+    if (String(val) === String(m[f.key] ?? '')) continue;
+    changes[f.key] = val;
+    previous[f.key] = m[f.key] ?? '';
+  }
+  if (!Object.keys(changes).length) return res.status(400).json({ error: 'Nothing was changed' });
+  if (changes.name_kh === '' || changes.name_en === '') return res.status(400).json({ error: 'Name cannot be empty' });
+  const note = String(req.body?.note || '').trim().slice(0, 1000);
+  // One open request per section: a new one replaces the previous pending request.
+  for (const old of db.prepare("SELECT * FROM change_requests WHERE member_id = ? AND section = ? AND status = 'pending'").all(m.id, section)) {
+    for (const f of fileRefs(JSON.parse(old.changes))) if (!Object.values(changes).includes(f)) removeUpload(f);
+    db.prepare("UPDATE change_requests SET status = 'replaced', decided_at = ? WHERE id = ?").run(nowIso(), old.id);
+  }
+  const r = db.prepare('INSERT INTO change_requests (member_id, section, changes, previous, note, created_at) VALUES (?,?,?,?,?,?)')
+    .run(m.id, section, JSON.stringify(changes), JSON.stringify(previous), note, nowIso());
+  audit(req, 'change.request', `member:${m.id}`, { section, fields: Object.keys(changes) });
+  res.json(requestView(db.prepare('SELECT * FROM change_requests WHERE id = ?').get(r.lastInsertRowid)));
+});
+
+app.delete('/api/me/change-requests/:id', requireUser, (req, res) => {
+  const r = db.prepare("SELECT * FROM change_requests WHERE id = ? AND member_id = ? AND status = 'pending'").get(Number(req.params.id), req.user.member_id ?? -1);
+  if (!r) return res.status(404).json({ error: 'Not found' });
+  fileRefs(JSON.parse(r.changes)).forEach(removeUpload);
+  db.prepare("UPDATE change_requests SET status = 'cancelled', decided_at = ? WHERE id = ?").run(nowIso(), r.id);
+  audit(req, 'change.cancel', `member:${r.member_id}`, { section: r.section });
+  res.json({ ok: true });
 });
 
 // Accept the current privacy notice (recorded with version + time as proof).
@@ -450,7 +555,7 @@ function storeDataUrl(dataUrl, prefix, allowPdf) {
   return name;
 }
 const removeUpload = (v) => {
-  if (v?.startsWith('file:')) fs.rm(path.join(UPLOAD_DIR, path.basename(v.slice(5))), { force: true }, () => {});
+  if (typeof v === 'string' && v.startsWith('file:')) fs.rm(path.join(UPLOAD_DIR, path.basename(v.slice(5))), { force: true }, () => {});
 };
 
 app.post('/api/upload', requireUser, (req, res) => {
@@ -460,6 +565,8 @@ app.post('/api/upload', requireUser, (req, res) => {
   const id = req.user.role === 'admin' && memberId ? Number(memberId) : req.user.member_id;
   const existing = id && getMember(id);
   if (!existing) return res.status(404).json({ error: 'Member not found' });
+  if (req.user.role !== 'admin' && existing.lock.locked)
+    return res.status(403).json({ error: 'Your information is locked. Use “Request change” on the section instead.', locked: true });
   try {
     const name = storeDataUrl(dataUrl, `${id}-${field}`, f.type === 'file');
     removeUpload(existing[field]);
@@ -474,15 +581,16 @@ app.post('/api/upload', requireUser, (req, res) => {
 
 app.get('/api/files/:name', requireUser, (req, res) => {
   const name = path.basename(req.params.name);
-  if (!/^(\d+-(photo|cert_file)|assoc-qr)-[0-9a-f]+\.(jpg|png|webp|pdf)$/.test(name)) return res.status(404).end();
+  if (!UPLOAD_NAME.test(name)) return res.status(404).end();
   const isStaff = ['admin', 'moderator'].includes(req.user.role);
   const isPublic = name.startsWith('assoc-');
-  if (!isStaff && !isPublic && req.user.member_id !== Number(name.split('-')[0])) return res.status(403).end();
+  const owner = fileOwner(name);
+  if (!isStaff && !isPublic && req.user.member_id !== owner) return res.status(403).end();
   const file = path.join(UPLOAD_DIR, name);
   if (!fs.existsSync(file)) return res.status(404).end();
-  // Certificates are sensitive documents: log when staff open someone else's.
-  if (isStaff && name.includes('-cert_file-') && req.user.member_id !== Number(name.split('-')[0])) {
-    audit(req, 'file.view', `member:${Number(name.split('-')[0])}`, { field: 'cert_file' });
+  // Certificates and payment bills are sensitive documents: log when staff open someone else's.
+  if (isStaff && /-(cert_file|bill)-/.test(name) && req.user.member_id !== owner) {
+    audit(req, 'file.view', `member:${owner}`, { field: name.includes('-bill-') ? `bill (event ${name.split('-')[0].slice(2)})` : 'cert_file' });
   }
   // Sandbox served files so a crafted file can never run script on this site.
   res.set({ 'Cache-Control': 'private, max-age=86400', 'Content-Security-Policy': "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'" });
@@ -516,14 +624,125 @@ app.post('/api/association/qr', requireAdmin, (req, res) => {
 });
 
 // ---------- staff: moderators + admins ----------
-app.get('/api/members', requireStaff, (req, res) => res.json(listMembers(req.query.q)));
+// Member list with flags: possible duplicates and pending change requests.
+function membersWithFlags(q = '') {
+  q = typeof q === 'string' ? q : '';
+  const all = listMembers();
+  const dups = duplicateMap(all);
+  const pending = new Map(db.prepare("SELECT member_id, COUNT(*) n FROM change_requests WHERE status = 'pending' GROUP BY member_id").all().map((r) => [r.member_id, r.n]));
+  const ids = q ? new Set(listMembers(q).map((m) => m.id)) : null;
+  return all.filter((m) => !ids || ids.has(m.id)).map((m) => ({ ...m, dups: dups.get(m.id) || [], pending_changes: pending.get(m.id) || 0 }));
+}
+// Same filters as the Members screen: ALL, a status key, DUP (possible duplicates), CHG (change requests).
+function applyFilter(rows, s) {
+  s = typeof s === 'string' ? s : '';
+  if (!s || s === 'ALL') return rows;
+  if (s === 'DUP') return rows.filter((m) => m.dups.length);
+  if (s === 'CHG') return rows.filter((m) => m.pending_changes);
+  if (s.startsWith('L:')) return rows.filter((m) => m.level === s.slice(2));
+  return rows.filter((m) => m.status === s);
+}
+
+app.get('/api/members', requireStaff, (req, res) => res.json(applyFilter(membersWithFlags(req.query.q), req.query.s)));
 
 app.get('/api/members/:id', requireStaff, (req, res) => {
-  const m = getMember(Number(req.params.id));
+  const m = membersWithFlags().find((x) => x.id === Number(req.params.id));
   if (!m) return res.status(404).json({ error: 'Not found' });
   audit(req, 'member.view', `member:${m.id}`);
   res.json(m);
 });
+
+// "Not a duplicate": remember that this member is distinct from the records it currently matches.
+app.post('/api/members/:id/not-duplicate', requireAdmin, (req, res) => {
+  const m = membersWithFlags().find((x) => x.id === Number(req.params.id));
+  if (!m) return res.status(404).json({ error: 'Not found' });
+  const others = m.dups.map((d) => d.id);
+  saveMember(m.id, { dup_ok: [...new Set([...(m.dup_ok || []), ...others])] });
+  audit(req, 'member.not_duplicate', `member:${m.id}`, { others: others.join(',') });
+  res.json(membersWithFlags().find((x) => x.id === m.id));
+});
+
+// ---------- change requests: admin review ----------
+app.get('/api/change-requests', requireAdmin, (req, res) => {
+  const status = String(req.query.status || 'pending');
+  const member = req.query.member ? Number(req.query.member) : null;
+  const rows = db.prepare(`SELECT r.*, m.member_no, json_extract(m.data, '$.name_kh') AS name_kh, json_extract(m.data, '$.name_en') AS name_en
+    FROM change_requests r JOIN members m ON m.id = r.member_id
+    WHERE (? = 'all' OR r.status = ?) AND (? IS NULL OR r.member_id = ?) ORDER BY r.id DESC LIMIT 200`).all(status, status, member, member);
+  res.json(rows.map(requestView));
+});
+
+app.post('/api/change-requests/:id/decision', requireAdmin, (req, res) => {
+  const r = db.prepare("SELECT * FROM change_requests WHERE id = ? AND status = 'pending'").get(Number(req.params.id));
+  if (!r) return res.status(404).json({ error: 'This request is no longer pending' });
+  const changes = JSON.parse(r.changes);
+  const decision = req.body?.decision;
+  const reason = String(req.body?.reason || '').trim().slice(0, 1000);
+  if (decision === 'approve') {
+    const m = getMember(r.member_id);
+    for (const k of Object.keys(changes)) if (String(changes[k]).startsWith('file:') && m[k] !== changes[k]) removeUpload(m[k]);
+    saveMember(r.member_id, changes);
+  } else if (decision === 'reject') {
+    if (!reason) return res.status(400).json({ error: 'Please write the reason for rejecting' });
+    fileRefs(changes).forEach(removeUpload);
+  } else return res.status(400).json({ error: 'Invalid decision' });
+  db.prepare('UPDATE change_requests SET status = ?, decided_by = ?, decided_at = ?, reason = ? WHERE id = ?')
+    .run(decision === 'approve' ? 'approved' : 'rejected', req.user.username, nowIso(), reason, r.id);
+  audit(req, `change.${decision}`, `member:${r.member_id}`, { section: r.section, fields: Object.keys(changes) });
+  res.json(requestView(db.prepare('SELECT * FROM change_requests WHERE id = ?').get(r.id)));
+});
+
+// ---------- admin: system settings ----------
+app.get('/api/settings', requireAdmin, (req, res) => res.json(getSettings()));
+
+app.put('/api/settings', requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const cur = getSettings();
+  const s = { ...cur };
+  if ('edit_days' in b) {
+    const v = String(b.edit_days ?? '').trim();
+    if (v !== '' && !(/^\d{1,4}$/.test(v))) return res.status(400).json({ error: 'Edit window must be a number of days (or empty for no limit)' });
+    s.edit_days = v;
+  }
+  if ('renewal_enabled' in b) s.renewal_enabled = b.renewal_enabled === true;
+  if ('renewal_date' in b) {
+    const v = String(b.renewal_date || '');
+    const ok = /^(\d{2})-(\d{2})$/.exec(v);
+    if (!ok || +ok[1] < 1 || +ok[1] > 12 || +ok[2] < 1 || +ok[2] > new Date(2001, +ok[1], 0).getDate())
+      return res.status(400).json({ error: 'Renewal date must be a valid month and day' });
+    s.renewal_date = v;
+  }
+  if ('inactive_enabled' in b) s.inactive_enabled = b.inactive_enabled === true;
+  if ('inactive_years' in b) {
+    const v = parseInt(b.inactive_years, 10);
+    if (!(v >= 1 && v <= 20)) return res.status(400).json({ error: 'Years must be between 1 and 20' });
+    s.inactive_years = String(v);
+  }
+  if ('levels' in b) {
+    if (!Array.isArray(b.levels) || b.levels.length > 30) return res.status(400).json({ error: 'Invalid levels' });
+    const levels = [];
+    for (const l of b.levels) {
+      const kh = String(l?.kh || '').trim().slice(0, 80);
+      const en = String(l?.en || '').trim().slice(0, 80);
+      let key = String(l?.key || '').trim().toLowerCase();
+      if (!kh || !en) return res.status(400).json({ error: 'Every level needs a Khmer and an English name' });
+      if (!/^[a-z0-9_-]{1,30}$/.test(key)) key = en.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || `level-${levels.length + 1}`;
+      const color = String(l?.color || '').trim();
+      if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) return res.status(400).json({ error: `Invalid colour for ${en}` });
+      if (levels.some((x) => x.key === key)) return res.status(400).json({ error: `Duplicate level: ${en}` });
+      levels.push({ key, kh, en, color: color.toLowerCase() });
+    }
+    if (!levels.some((l) => l.key === 'member')) return res.status(400).json({ error: 'The “member” level cannot be removed' });
+    // Members on a removed level fall back to "member".
+    const keys = new Set(levels.map((l) => l.key));
+    for (const m of listMembers()) if (m.level !== 'member' && !keys.has(m.level)) saveMember(m.id, { level: 'member' });
+    s.levels = levels;
+  }
+  const saved = saveSettings(s);
+  audit(req, 'settings.update', 'settings', { fields: Object.keys(b).filter((k) => k in SETTINGS_KEYS) });
+  res.json(saved);
+});
+const SETTINGS_KEYS = { edit_days: 1, renewal_enabled: 1, renewal_date: 1, inactive_enabled: 1, inactive_years: 1, levels: 1 };
 
 // History of everything done to one member record (admins only).
 app.get('/api/members/:id/audit', requireAdmin, (req, res) => res.json(memberAudit(Number(req.params.id))));
@@ -612,6 +831,8 @@ app.delete('/api/members/:id', requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'You cannot delete your own account or the last admin' });
   removeUpload(m.photo);
   removeUpload(m.cert_file);
+  for (const p of db.prepare('SELECT bill FROM event_participants WHERE member_id = ? AND bill IS NOT NULL').all(m.id)) removeUpload(p.bill);
+  for (const r of db.prepare("SELECT changes FROM change_requests WHERE member_id = ? AND status = 'pending'").all(m.id)) fileRefs(JSON.parse(r.changes)).forEach(removeUpload);
   deleteMember(m.id);
   audit(req, 'member.delete', `member:${m.id}`, { member_no: m.member_no || null, deletion_requested: !!m.deletion_requested_at });
   res.json({ ok: true });
@@ -632,29 +853,49 @@ app.post('/api/members/:id/password', requireAdmin, (req, res) => {
   res.json({ username: m.email, password: pw, expires_hours: TEMP_PW_HOURS });
 });
 
-// Excel export of all members, or only the given ids (?ids=1,2,3).
+// Absolute base URL for links inside exported files (PUBLIC_URL, else the address the admin is using).
+const baseUrl = (req) => PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
+
+// Builds an .xlsx sheet; cells may be plain values or { v, link } for clickable links.
+function sheet(header, rows) {
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows.map((r) => r.map((c) => (c && typeof c === 'object' ? c.v : c)))]);
+  rows.forEach((r, ri) => r.forEach((c, ci) => {
+    if (c && typeof c === 'object' && c.link) ws[XLSX.utils.encode_cell({ r: ri + 1, c: ci })].l = { Target: c.link, Tooltip: 'Open (sign-in required)' };
+  }));
+  const text = (c) => String(c && typeof c === 'object' ? c.v : c ?? '');
+  ws['!cols'] = header.map((h, i) => ({ wch: Math.min(40, Math.max(10, ...[h, ...rows.map((r) => r[i])].map((v) => text(v).length))) }));
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: header.length - 1 } }) };
+  return ws;
+}
+const fileLinkCell = (req, v, label = 'View') => (v && String(v).startsWith('file:')
+  ? { v: label, link: `${baseUrl(req)}/api/files/${String(v).slice(5)}` } : (v ? { v: label, link: v } : ''));
+
+// Excel export: the members currently shown (?q=search&s=filter), or only the given ids (?ids=1,2,3).
 app.get('/api/export.xlsx', requireAdmin, (req, res) => {
   const ids = String(req.query.ids || '').split(',').map(Number).filter(Boolean);
-  const rows = listMembers().filter((m) => !ids.length || ids.includes(m.id));
-  audit(req, 'members.export', 'members', { count: rows.length, scope: ids.length ? 'selected' : 'all' });
+  const rows = ids.length
+    ? membersWithFlags().filter((m) => ids.includes(m.id))
+    : applyFilter(membersWithFlags(req.query.q), req.query.s);
+  const levels = new Map(getSettings().levels.map((l) => [l.key, `${l.kh} / ${l.en}`]));
+  audit(req, 'members.export', 'members', { count: rows.length, scope: ids.length ? 'selected' : (req.query.s || 'ALL'), search: req.query.q ? 'yes' : 'no' });
   const fmt = (f, v) => {
     if (v == null || v === '') return '';
     if (f.type === 'datetime') return new Date(new Date(v).getTime() + 7 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
     if (f.type === 'number') return Number(v);
-    if ((f.type === 'photo' || f.type === 'file') && String(v).startsWith('file:')) return `${PUBLIC_URL || ''}/api/files/${String(v).slice(5)}`;
+    if (f.type === 'level') return levels.get(v) || v;
+    if (f.type === 'photo' || f.type === 'file') return fileLinkCell(req, v);
     return String(v);
   };
-  const header = [...FIELDS.map((f) => `${f.kh} / ${f.en}`), 'Role'];
-  const data = rows.map((m) => [...FIELDS.map((f) => fmt(f, m[f.key])), m.role || 'member']);
-  const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
-  ws['!cols'] = header.map((h, i) => ({ wch: Math.min(40, Math.max(12, ...[h, ...data.map((r) => r[i])].map((v) => String(v ?? '').length))) }));
-  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: data.length, c: header.length - 1 } }) };
+  const header = [...FIELDS.map((f) => `${f.kh} / ${f.en}`), 'Role', 'Possible duplicate of'];
+  const data = rows.map((m) => [...FIELDS.map((f) => fmt(f, m[f.key])), m.role || 'member',
+    m.dups.map((d) => `${d.member_no || d.name_en} (${d.reasons.join(', ')})`).join('; ')]);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Members');
+  XLSX.utils.book_append_sheet(wb, sheet(header, data), 'Members');
   const stamp = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  const scope = ids.length ? 'selected' : String(req.query.s || 'all').toLowerCase().replace(/[^a-z0-9-]/g, '');
   res.set({
     'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'Content-Disposition': `attachment; filename="aisarc-members-${ids.length ? 'selected' : 'all'}-${stamp}.xlsx"`,
+    'Content-Disposition': `attachment; filename="aisarc-members-${scope}${req.query.q ? '-search' : ''}-${stamp}.xlsx"`,
   });
   res.send(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
 });
@@ -763,7 +1004,41 @@ app.get('/api/privacy/requests', requireAdmin, (req, res) => {
   res.json(rows);
 });
 
-// ---------- retention (runs at start-up and daily) ----------
+// ---------- daily jobs (run at start-up and every 24 h) ----------
+// Membership: members who stayed PENDING (not renewed) for the configured number of years become INACTIVE.
+function autoInactive() {
+  const s = getSettings();
+  const years = parseInt(s.inactive_years, 10);
+  if (!s.inactive_enabled || !(years >= 1)) return 0;
+  const limit = years * 365.25 * 864e5;
+  let n = 0;
+  for (const m of listMembers()) {
+    if (m.status !== 'PENDING' || !m.pending_since || Date.now() - new Date(m.pending_since) < limit) continue;
+    saveMember(m.id, { status: 'INACTIVE', inactive_reason: 'not_renewed', inactive_at: nowIso() });
+    audit({ auditActor: 'system' }, 'member.auto_inactive', `member:${m.id}`, { pending_since: m.pending_since, years });
+    n++;
+  }
+  return n;
+}
+
+// Uploaded files no record refers to any more (abandoned change-request uploads etc.), older than a day.
+function purgeOrphanUploads() {
+  const refs = new Set();
+  const add = (v) => { if (typeof v === 'string' && v.startsWith('file:')) refs.add(v.slice(5)); };
+  for (const r of db.prepare('SELECT data FROM members').all()) Object.values(JSON.parse(r.data)).forEach(add);
+  for (const r of db.prepare("SELECT changes FROM change_requests WHERE status IN ('pending','approved')").all()) Object.values(JSON.parse(r.changes)).forEach(add);
+  for (const r of db.prepare('SELECT bill FROM event_participants WHERE bill IS NOT NULL').all()) add(r.bill);
+  add(getAssociation().qr);
+  let n = 0;
+  for (const name of fs.readdirSync(UPLOAD_DIR)) {
+    const p = path.join(UPLOAD_DIR, name);
+    if (refs.has(name) || Date.now() - fs.statSync(p).mtimeMs < 864e5) continue;
+    fs.rmSync(p, { force: true });
+    n++;
+  }
+  return n;
+}
+
 function retention() {
   const cutoff = new Date(Date.now() - 365 * 864e5).toISOString();
   const stale = db.prepare(`SELECT id FROM members WHERE json_extract(data, '$.status') = 'DRAFT'
@@ -776,14 +1051,16 @@ function retention() {
   }
   const auditPurged = purgeAudit(730);
   const backupsPurged = purgeOldBackups(90);
-  if (stale.length || auditPurged || backupsPurged) {
-    audit({ auditActor: 'system' }, 'retention.purge', 'database', { drafts: stale.length, audit: auditPurged, backups: backupsPurged });
+  const orphans = purgeOrphanUploads();
+  if (stale.length || auditPurged || backupsPurged || orphans) {
+    audit({ auditActor: 'system' }, 'retention.purge', 'database', { drafts: stale.length, audit: auditPurged, backups: backupsPurged, files: orphans });
   }
+  autoInactive();
 }
 retention();
 setInterval(retention, 24 * 3600e3).unref();
 
-registerEvents(app);
+registerEvents(app, { storeDataUrl, removeUpload, UserError, sheet, fileLinkCell });
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 

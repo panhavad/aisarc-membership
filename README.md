@@ -1,6 +1,6 @@
 # AISARC Membership Portal · ប្រព័ន្ធគ្រប់គ្រងសមាជិក
 
-**Version 1.7.0** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
+**Version 1.8.0** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
 (សមាគម គិលានុបដ្ឋាកឯកទេសដាក់ថ្នាំសណ្តំ និង ប្រពោធនកម្មកម្ពុជា).
 
 <p>
@@ -42,13 +42,15 @@
 | Sign in | Email + password, or **Sign in with Google** (same email as the member record). |
 | Self-registration | New people register, then complete their profile and **submit it for review**. |
 | Profile completion | Live progress bar, required items marked **\***, missing items highlighted; submitting is blocked until complete. |
-| Digital membership pass | Blue card with logo, Khmer + English name, birthday, membership no., member since and photo. |
+| Digital membership pass | Card in the logo blue with logo, Khmer + English name, **technical training**, membership no., birthday, member since and photo. Members with a **level** (leader, board member, accounting…) get the level's colour and label. |
 | Anti-screenshot pass | Active passes have a moving shine and a live clock, so a screenshot is easy to spot. |
 | Status messages | The pass explains the current status and the next step (submit, fix & resubmit, renew…). |
-| Edit own information | All personal, contact, work and registration fields; photo and certificate upload. |
-| Locked fields | "Member since", membership no., status, validity and login email can only be changed by admins. |
-| Declaration consent | Agree / Not agree; "Not agree" makes the membership INACTIVE. |
-| Events | See events grouped by **Happening now / Upcoming / Past**, open the location in **Google Maps**, join or cancel a seat, and see the live number of participants. |
+| Edit own information | All personal, contact, work and registration fields; photo and certificate upload – during the **edit window** set by the admin (default 30 days after approval). |
+| Locked profile + change requests | After the edit window the profile is display-only. Members tap **Request change** on a section (personal, contact, work, registration), edit it and send it; an admin approves (applied) or rejects (with a reason). |
+| Locked fields | "Member since", membership no., status, level, validity and login email can only be changed by admins. |
+| Declaration consent | Agree / Not agree, always editable; "Not agree" makes the membership INACTIVE. |
+| Events | See events grouped by **Happening now / Upcoming / Past**, with **price** and **registration deadline**; open the location in **Google Maps**, join or cancel a seat, and see the live number of participants. |
+| Event payment proof | For paid events, upload a photo (or PDF) of the payment receipt after paying; it can be replaced until the event ends. |
 | Privacy | Read the privacy notice, see their consent record, **download all their data**, and **request deletion**. |
 | Association info | Association details, membership fee, bank account (copy button), payment QR and contacts. |
 | Renewal | When the membership expires (PENDING), members pay and tap **Request renewal**. |
@@ -58,19 +60,23 @@
 ### For moderators · អ្នកសម្របសម្រួល
 | Feature | Description |
 | --- | --- |
-| Review queue | Members waiting for review, with status filters and search. |
+| Review queue | Members waiting for review, with status filters, a **Duplicate** filter and search. |
 | Approve | Approving assigns the membership no., "member since" and validity. |
 | Reject with reason | "Information missing", "Information incorrect" or "Other" + message; the member sees it and resubmits. |
-| Events | Create, edit and delete events; see participants with phone numbers and membership numbers. |
+| Events | Create, edit and delete events with **price** and **"registration closes N days before"**; see joiners with ID, gender, workplace, technical training and **payment proof**; **export the joiner list to Excel**. |
 
 ### For admins · អ្នកគ្រប់គ្រង
 | Feature | Description |
 | --- | --- |
-| Member management | Search, filter by status, add, edit every field, activate / deactivate. |
+| Member management | Search, filter by status / **Duplicate** / **Change requests** / level, add, edit every field, activate / deactivate. |
+| Possible duplicates | Records with the same phone/Telegram, email or name are flagged (also rows imported twice). Compare, delete the extra record, or mark **Not a duplicate**. |
+| Change requests | Approve or reject members' change requests (Admin tab, or on the member page). |
+| Member levels | Assign a level (leader, board member, accounting…); define levels and their card colours in **Settings**. |
+| Settings | Edit window (days after approval), **annual renewal date** (everyone becomes PENDING until renewed), **automatic INACTIVE** after N years PENDING, member levels. |
 | Delete safely | Delete is hidden in a "Danger zone" and requires typing the membership no. |
 | Roles | Make any member a moderator or admin; create stand-alone admin / moderator accounts. |
 | Passwords | Generate temporary passwords (valid 72 h, must be changed at first sign-in). |
-| Excel export | Export **all** members or only **selected** members to `.xlsx`. |
+| Excel export | **Export (N)** downloads exactly the members shown (current search + filter), or **Select** members and export only those. |
 | Association info | Edit the association details, fee, validity period, bank account, payment QR and contacts. |
 | Backup & restore | Download one file with the whole database and uploaded files (optionally **encrypted with a passphrase**); restore it later. |
 | Privacy requests | Deletion requests from members, with a 30-day due date. |
@@ -80,7 +86,7 @@
 ### Platform
 - Mobile-first, responsive (phone → desktop), installable as a home-screen app (PWA manifest).
 - Khmer + English throughout; Kantumruy Pro font.
-- Fast and light: no front-end build step or framework (~115 KB of front-end code, uncompressed), Node.js 24 with built-in SQLite.
+- Fast and light: no front-end build step or framework (~180 KB of front-end code, uncompressed), Node.js 24 with built-in SQLite.
 - Docker Compose deployment with **auto-update on `git push`**.
 - Version number shown on the login screen and at the bottom of every page.
 
@@ -99,10 +105,18 @@
 | <img src="docs/screenshots/10-association.png" width="230"> | <img src="docs/screenshots/11-admin-members.png" width="230"> | <img src="docs/screenshots/12-moderator-review.png" width="230"> |
 | **Reject with reason** | **Select & export to Excel** | **Admin – users & backup** |
 | <img src="docs/screenshots/13-reject-dialog.png" width="230"> | <img src="docs/screenshots/14-export-select.png" width="230"> | <img src="docs/screenshots/15-admin-system.png" width="230"> |
-| **New event** | | |
-| <img src="docs/screenshots/16-event-new.png" width="230"> | | |
+| **New event (price, closing days)** | **Event joiners + payment proofs** | **Member: upload payment proof** |
+| <img src="docs/screenshots/16-event-new.png" width="230"> | <img src="docs/screenshots/19-event-joiners.png" width="230"> | <img src="docs/screenshots/29-event-bill-upload.png" width="230"> |
+| **Level card (board member)** | **Locked profile** | **Request a change** |
+| <img src="docs/screenshots/18-pass-level.png" width="230"> | <img src="docs/screenshots/21-profile-locked.png" width="230"> | <img src="docs/screenshots/22-change-request.png" width="230"> |
+| **Admin – change requests** | **Admin – settings & levels** | **Possible duplicate** |
+| <img src="docs/screenshots/26-change-requests.png" width="230"> | <img src="docs/screenshots/27-settings.png" width="230"> | <img src="docs/screenshots/25-duplicate-notice.png" width="230"> |
 
-**Desktop – admin member page**
+**Desktop – admin members (Duplicate / Change requests / level filters, export follows the filter)**
+
+<img src="docs/screenshots/28-admin-members-desktop.png" width="800">
+
+**Desktop – admin member page (with a pending change request)**
 
 <img src="docs/screenshots/17-admin-member-desktop.png" width="800">
 
@@ -120,8 +134,9 @@ stateDiagram-v2
     REVIEW --> ACTIVE: moderator approves
     REVIEW --> REJECTED: moderator rejects (reason)
     REJECTED --> REVIEW: member fixes and resubmits
-    ACTIVE --> PENDING: validity period ends
+    ACTIVE --> PENDING: validity ends, or the yearly renewal date passes
     PENDING --> REVIEW: member pays and requests renewal
+    PENDING --> INACTIVE: still PENDING after N years (automatic, if enabled)
     ACTIVE --> INACTIVE: chooses "Not agree" or admin deactivates
     INACTIVE --> REVIEW: agrees again or asks for review
     INACTIVE --> ACTIVE: admin activates
@@ -156,31 +171,50 @@ flowchart TD
 ```mermaid
 flowchart LR
     M((Member)) --> M1[View own pass]
-    M --> M2[Edit own profile]
-    M --> M3[Join or cancel events]
+    M --> M2[Edit own profile during the edit window, then request changes]
+    M --> M3[Join or cancel events, upload payment proof]
     M --> M4[See association and payment info]
     MO((Moderator)) --> O1[Review queue: approve or reject]
-    MO --> O2[Create, edit and delete events]
-    MO --> O3[View members, read-only]
+    MO --> O2[Create, edit and delete events, export joiners]
+    MO --> O3[View members and duplicate flags, read-only]
     AD((Admin)) --> A1[Everything moderators can do]
-    AD --> A2[Edit any member, activate or deactivate, delete]
+    AD --> A2[Edit any member, level, activate or deactivate, delete]
     AD --> A3[Roles and system users]
-    AD --> A4[Excel export]
+    AD --> A4[Excel export of the current filter]
     AD --> A5[Association info]
     AD --> A6[Backup and restore]
+    AD --> A7[Settings: edit window, renewal date, auto-inactive, levels]
+    AD --> A8[Approve or reject change requests]
+```
+
+### Locked profile and change requests
+
+```mermaid
+flowchart TD
+    P1[Member approved] --> P2{Within the edit window? default 30 days}
+    P2 -- Yes --> P3[Edits the profile directly]
+    P2 -- No --> P4[Profile is display-only; consent can still be changed]
+    P4 --> P5[Taps Request change on a section, edits it, adds a note]
+    P5 --> P6[Request is pending; the member can update or cancel it]
+    P6 --> P7{Admin decision}
+    P7 -- Approve --> P8[Changes are applied to the record]
+    P7 -- Reject with reason --> P9[Member sees the reason and can send a new request]
 ```
 
 ### Events
 
 ```mermaid
 flowchart TD
-    E1[Admin or moderator creates event: name, location, Maps link, start and end, seats, description] --> E2[Event appears under Upcoming]
+    E1[Admin or moderator creates event: name, location, Maps link, start and end, seats, price, closing days, description] --> E2[Event appears under Upcoming]
     E2 --> E3{Member is ACTIVE?}
     E3 -- No --> E4[Can view only]
-    E3 -- Yes --> E5{Seats left?}
-    E5 -- No --> E6[Shown as Full]
-    E5 -- Yes --> E7[Join: participant list and seat count update live]
-    E7 --> E8[Can cancel seat until the event starts]
+    E3 -- Yes --> E5{Registration still open and seats left?}
+    E5 -- No --> E6[Shown as Closed or Full]
+    E5 -- Yes --> E7[Join: seat count updates live]
+    E7 --> E11{Paid event?}
+    E11 -- Yes --> E12[Member pays and uploads the receipt photo]
+    E12 --> E13[Organisers see Bill ✓ and export the joiner list to Excel]
+    E7 --> E8[Can cancel seat until the event starts; the receipt is deleted]
     E2 --> E9[At start time: moves to Happening now with a LIVE badge]
     E9 --> E10[After the end time, or 3 hours if no end: moves to Past]
 ```
@@ -231,20 +265,28 @@ sequenceDiagram
 
 ### 4. Edit your information · កែប្រែព័ត៌មាន
 - Open the **Profile** tab, change what you need and tap **Save**.
-- Fields with 🔒 (member since, membership no., status, validity, login email) are managed by the admin.
-- Choosing **Not agree · មិនយល់ព្រម** on the declaration makes your membership **INACTIVE**.
+- After approval you can edit for a limited time (set by the admin, normally **30 days**). The profile shows until when.
+- After that your information is **locked** (display only). To correct something, tap **✎ Request change · ស្នើកែប្រែ**
+  on that section, edit the fields, add a note and tap **Send for review · ផ្ញើ**. An admin approves it (your
+  information is updated) or rejects it with a reason. You can update or cancel a pending request.
+- Fields with 🔒 (member since, membership no., status, level, validity, login email) are managed by the admin.
+- Choosing **Not agree · មិនយល់ព្រម** on the declaration makes your membership **INACTIVE** (always possible, even when locked).
 
 ### 5. Events · ព្រឹត្តិការណ៍
 1. Open **Events**. Events are grouped into **Happening now**, **Upcoming** and **Past** (tap to expand).
-2. Tap an event to see the time, location, seats left and who joined.
+2. Tap an event to see the time, location, **price**, **registration deadline**, seats left and how many joined.
 3. Tap **Google Maps** to get directions.
-4. Tap **Join this event · ចូលរួម** (ACTIVE members only). To give your seat back, tap **Cancel my seat** before the event starts.
-   For privacy, members see how many people joined; only the organisers see the names.
+4. Tap **Join this event · ចូលរួម** (ACTIVE members only) before registration closes. To give your seat back, tap
+   **Cancel my seat** before the event starts. For privacy, members see how many people joined; only the organisers see the names.
+5. **Paid event:** pay the price (bank details in **Association**), then tap **⬆ Upload proof** on the event and choose
+   a photo of the receipt (or a PDF). You can replace it until the event ends.
 
 ### 6. Pay and renew · បង់ប្រាក់ និង បន្តសមាជិកភាព
 1. Open **Association** to see the membership fee, bank account (tap **Copy account no.**) and payment QR.
 2. After paying, send the receipt as described in the payment instructions.
 3. When your membership has expired (**PENDING**), tap **Request renewal** on your pass. A moderator will review it.
+   If the association uses a yearly renewal date, everyone renews by that date each year (shown in **Association**).
+   A membership left PENDING for several years may become **INACTIVE** automatically; you can still pay and submit it for review.
 
 ### 7. Your data and privacy · ទិន្នន័យ និង ឯកជនភាព
 - **Privacy** link at the bottom of every page: what the association collects, why, who can see it, and how long it is kept.
@@ -270,9 +312,13 @@ sequenceDiagram
 4. Or tap **✕ Reject**, choose a reason (*information missing*, *incorrect*, or *other* + message) and confirm.
    The member sees your message and can resubmit.
 5. **Events tab → + New event**: enter name, location, an optional exact Google Maps link (Google Maps → Share →
-   Copy link), start and end, number of seats (0 = unlimited) and description, then **Publish event**.
-   Use **Test map link** to check the location.
-6. Open an event to see participants (with phone and membership no.), **Edit event** or **Delete event**.
+   Copy link), start and end, number of seats (0 = unlimited), **price** (0 = free), **close registration N days
+   before the start** (0 = until it starts) and description, then **Publish event**. Use **Test map link** to check the location.
+6. Open an event to see the joiners with membership no., gender, phone, workplace, technical training and **payment
+   proof** (tap the thumbnail to open it). **⬇ Export to Excel** downloads the list (bills are links that need a staff
+   sign-in). **Edit event** or **Delete event** at the bottom.
+7. The **Duplicate** filter lists records that may belong to the same person (same phone/Telegram, email or name).
+   Tell an admin, who can merge or mark them.
 
 ---
 
@@ -281,15 +327,17 @@ sequenceDiagram
 ### Members · សមាជិក
 | Task | How |
 | --- | --- |
-| Find a member | **Members** tab → search by name, phone, email, membership no. or workplace; use the status filters. |
+| Find a member | **Members** tab → search by name, phone, email, membership no. or workplace; use the filters (status, **Duplicate**, **Change requests**, level). |
 | Add a member | **+ Add** → fill in the form → **Create member**. |
-| Edit a member | Tap the member → change any field (including member since, membership no., status, valid until) → **Save changes**. |
+| Edit a member | Tap the member → change any field (including member since, membership no., status, **level**, valid until) → **Save changes**. |
 | Approve / reject | Same as moderators (buttons on the member page). |
 | Activate / deactivate | **Activate** or **Deactivate** on the member page. |
+| Change request | Member page → **✎ Change requests** card (or Admin tab) → **✓ Approve** applies it, **✕ Reject** needs a reason. |
+| Possible duplicate | Member page → orange **Possible duplicate** box → open the other record and compare → delete the extra one (Danger zone), or **Not a duplicate**. |
 | Make moderator / admin | Member page → **Account → Role**. |
 | Reset password | Member page → **Reset password** → share the temporary password privately (valid 72 h). |
 | Delete | Member page → bottom **Danger zone** → type the membership no. → **Delete permanently**. |
-| Export to Excel | **Export all**, or **Select** → tap members (or **Select all**) → **Export selected**. |
+| Export to Excel | Search and/or pick a filter → **Export (N)** downloads exactly those N members. Or **Select** → tap members (or **Select all**) → **Export selected**. |
 
 ### Admin tab · គ្រប់គ្រងប្រព័ន្ធ
 | Task | How |
@@ -300,6 +348,11 @@ sequenceDiagram
 | Backup | Enter a **passphrase** (recommended) → **⬇ Download backup**. Keep the file and the passphrase separately and safely. |
 | Restore | Open **Restore from a backup file** → passphrase (if encrypted) → choose the file → **Restore** → everyone is signed out. |
 | Privacy requests | Admin tab → **Privacy requests**: open the member and delete the record (Danger zone) within 30 days. |
+| Change requests | Admin tab → **Change requests from members**: all pending requests with old → new values; approve or reject (reason). |
+| Edit window | Admin tab → **Settings → Members can edit their information for N days** (after approval). Empty = never locked. |
+| Annual renewal | **Settings → Annual renewal**: tick it and choose the month/day. From then on validity runs until the next renewal date; members approved within 60 days before it stay valid until the following year. |
+| Auto-inactive | **Settings → Automatically set INACTIVE** after N years PENDING (checked daily; the reason "not renewed" is shown and logged). |
+| Member levels | **Settings → Member levels**: Khmer + English name, tick the box to give the card its own colour, **+ Add level**, ✕ to remove (members on a removed level go back to *Member*). Assign levels on the member page. |
 | Audit log | Admin tab → **Audit log**: search by action, user or `member:<id>`. A member's page shows their **Record history**. Review it monthly. |
 | Association info | **Edit association info**: name, about, fee, validity (months), bank, account, QR, contacts. |
 
@@ -314,11 +367,11 @@ sequenceDiagram
 | DRAFT | grey | New applicant still completing the profile (not submitted) | Member |
 | REVIEW | orange | Waiting for approval | Moderator / admin |
 | ACTIVE | green | Active member, no action needed. The pass shines and shows a live clock | – |
-| PENDING | grey | Membership expired (validity from Association Info); renewal needed | Member pays and requests renewal |
+| PENDING | grey | Membership expired (validity from Association Info, or the yearly renewal date in Settings); renewal needed | Member pays and requests renewal |
 | REJECTED | red | Rejected because information is missing or wrong; reason shown | Member fixes and resubmits |
-| INACTIVE | red | Member chose "Not agree" on the declaration, or an admin deactivated them | Member / admin |
+| INACTIVE | red | Member chose "Not agree" on the declaration, an admin deactivated them, or it stayed PENDING for the configured number of years | Member / admin |
 
-The pass card is always blue; only the status label changes colour.
+The pass card is always in the logo blue (or the member level's colour); only the status label changes colour.
 
 ---
 
@@ -407,7 +460,7 @@ See [.env.example](.env.example) for examples.
 - **Rate limits:** 10 failed sign-ins per account and 30 per IP per 15 minutes; 5 registrations per IP.
 - **Email ownership:** only admins change login emails. Google sign-in proves ownership and removes passwords set by
   someone who hadn't proven it.
-- **Uploads:** JPEG/PNG/WebP (+ PDF certificates) checked against the real file content, max 8 MB, random names,
+- **Uploads:** JPEG/PNG/WebP (+ PDF certificates and event payment proofs) checked against the real file content, max 8 MB, random names,
   owner/staff-only access, sandboxed when served.
 - **Web protections:** strict Content-Security-Policy, HSTS, X-Frame-Options, `nosniff`, no-store API caching,
   parameterized SQL, HTML-escaped output, no error details sent to clients.
@@ -426,6 +479,9 @@ See [.env.example](.env.example) for examples.
 
 - Member fields follow the original Google Form columns (`public/fields.js`). The fields required before submitting
   are listed in `SUBMIT_REQUIRED` in the same file.
+- **Importing the spreadsheet** (`scripts/import.js`): rows whose email is already in the system are kept as a separate
+  **REVIEW** record without a login and flagged **Duplicate**; importing the same file again skips rows already imported.
+  The summary also counts new rows that look like an existing member (same phone or name).
 - **Backup:** Admin tab → passphrase → *Download backup* → one file with the whole database and all uploaded files,
   encrypted with AES-256-GCM when a passphrase is set (`.aisarc-enc`), otherwise gzip (`.json.gz`).
 - **Restore:** Admin tab → *Restore from a backup file*. This replaces everything and signs everyone out; a safety copy
@@ -448,6 +504,8 @@ See [.env.example](.env.example) for examples.
 | "Temporary password has expired" | Ask an admin to reset it again (valid 72 hours). |
 | No auto-update after a push | `docker compose logs updater`; check `GIT_TOKEN` / `GIT_REPO_URL` / branch. |
 | Cookies not Secure / no HSTS header | Set `PUBLIC_URL=https://…` and remove `COOKIE_SECURE=false` from `.env`. |
+| A member says "Information locked" | The edit window after approval has passed (Admin tab → Settings). They use **Request change**, or an admin edits the record. |
+| Joiner Excel shows "View bill" instead of the picture | By design: the receipt is a link to the portal (staff sign-in required), so the file never contains the images. |
 
 ---
 
@@ -457,7 +515,8 @@ The version is set in `package.json` (`npm version minor`) and shown on the logi
 
 | Version | Changes |
 | --- | --- |
-| **1.7.0** | Personal-data protection: bilingual privacy notice (required at registration, re-accept on change), consent records, download-my-data, deletion requests, audit log and record history, event participant privacy, self-hosted fonts, encrypted backups, automatic retention (12-month drafts, 2-year audit, 90-day server backups), automated test suite and test report, data-protection document. |
+| **1.8.0** | Events: price, registration closes N days before the start, member payment-proof upload, joiner list with gender / workplace / technical training / bill, joiner export to Excel. Admin settings: profile edit window with locked profiles and per-section change requests, yearly renewal date (automatic PENDING), automatic INACTIVE after N years PENDING, member levels with card colours. Possible-duplicate detection (also on import) with Duplicate filter and "Not a duplicate". Members export follows the current search and filter. Card in the logo blue with technical training. Privacy notice 2026-11-13. |
+| 1.7.0 | Personal-data protection: bilingual privacy notice (required at registration, re-accept on change), consent records, download-my-data, deletion requests, audit log and record history, event participant privacy, self-hosted fonts, encrypted backups, automatic retention (12-month drafts, 2-year audit, 90-day server backups), automated test suite and test report, data-protection document. |
 | 1.6.0 | Profile completion and submit for review (DRAFT status), bilingual system tour with **?** button, event sections (now / upcoming / past), Google Maps links, version number in the app, README manual and flowcharts. |
 | 1.5.0 | Security hardening: no phone-number passwords, session revocation, stronger hashing, rate limits, CSP/HSTS, upload checks, Docker hardening. |
 | 1.4.0 | Events, Admin tab (system users, backup & restore), Excel export, Node 24 registration fix. |

@@ -1,6 +1,6 @@
 # Privacy notice · សេចក្តីជូនដំណឹងអំពីឯកជនភាព
 
-**Version 2026-11-12** – this is the same text members see in the app (`/#/privacy`, source: `public/privacy.js`).
+**Version 2026-11-13** – this is the same text members see in the app (`/#/privacy`, source: `public/privacy.js`).
 When the text changes, update `PRIVACY_VERSION` so members are asked to accept it again.
 
 ## 1. អ្នកណាជាអ្នកគ្រប់គ្រងទិន្នន័យ · Who is responsible
@@ -11,15 +11,15 @@ AISARC (សមាគម គិលានុបដ្ឋាកឯកទេសដ�
 
 ## 2. ព័ត៌មានដែលយើងប្រមូល · What we collect
 
-ឈ្មោះ ភេទ ថ្ងៃខែឆ្នាំកំណើត សញ្ជាតិ ទីកន្លែងកំណើត អាសយដ្ឋាន លេខទូរស័ព្ទ អ៊ីម៉ែល ព័ត៌មានការងារ និង ការសិក្សា លេខចុះបញ្ជិកា វិញ្ញាបនបត្រ រូបថត ទំហំអាវ ព័ត៌មានគណនី (ពាក្យសម្ងាត់ត្រូវបានអ៊ិនគ្រីប) ស្ថានភាពសមាជិកភាព ការចូលរួមព្រឹត្តិការណ៍ និង កំណត់ត្រាសុវត្ថិភាព (ម៉ោង និង អាសយដ្ឋាន IP)។
+ឈ្មោះ ភេទ ថ្ងៃខែឆ្នាំកំណើត សញ្ជាតិ ទីកន្លែងកំណើត អាសយដ្ឋាន លេខទូរស័ព្ទ អ៊ីម៉ែល ព័ត៌មានការងារ និង ការសិក្សា លេខចុះបញ្ជិកា វិញ្ញាបនបត្រ រូបថត ទំហំអាវ ព័ត៌មានគណនី (ពាក្យសម្ងាត់ត្រូវបានអ៊ិនគ្រីប) ស្ថានភាពសមាជិកភាព កម្រិតសមាជិក (ឧ. ប្រធាន ក្រុមប្រឹក្សា) ការចូលរួមព្រឹត្តិការណ៍ រូបវិក្កយបត្របង់ប្រាក់ដែលអ្នកបញ្ចូលសម្រាប់ព្រឹត្តិការណ៍ សំណើកែប្រែព័ត៌មាន និង កំណត់ត្រាសុវត្ថិភាព (ម៉ោង និង អាសយដ្ឋាន IP)។
 
-Name, gender, date of birth, nationality, place of birth, address, phone, email, work and education details, council registration number, certificate, photo, T-shirt size, account data (passwords are stored only as secure hashes), membership status and dates, event participation, and security records (time and IP address of important actions).
+Name, gender, date of birth, nationality, place of birth, address, phone, email, work and education details, council registration number, certificate, photo, T-shirt size, account data (passwords are stored only as secure hashes), membership status and dates, member level (e.g. leader, board member), event participation, payment receipts you upload for paid events, your change requests, and security records (time and IP address of important actions).
 
 ## 3. គោលបំណង · Why we use it
 
-ដើម្បីគ្រប់គ្រងសមាជិកភាព ផ្ទៀងផ្ទាត់គុណវុឌ្ឍិ ចេញកាតសមាជិកឌីជីថល រៀបចំព្រឹត្តិការណ៍ ទំនាក់ទំនងជាមួយសមាជិក រក្សាកំណត់ត្រារបស់សមាគម និង ការពារសុវត្ថិភាពប្រព័ន្ធ។ យើងមិនលក់ ឬ ប្រើព័ត៌មានរបស់អ្នកសម្រាប់ការផ្សាយពាណិជ្ជកម្មទេ។
+ដើម្បីគ្រប់គ្រងសមាជិកភាព ផ្ទៀងផ្ទាត់គុណវុឌ្ឍិ ចេញកាតសមាជិកឌីជីថល រៀបចំព្រឹត្តិការណ៍ និង ពិនិត្យការបង់ថ្លៃចូលរួម ទំនាក់ទំនងជាមួយសមាជិក រក្សាកំណត់ត្រារបស់សមាគម រកឃើញកំណត់ត្រាស្ទួន និង ការពារសុវត្ថិភាពប្រព័ន្ធ។ យើងមិនលក់ ឬ ប្រើព័ត៌មានរបស់អ្នកសម្រាប់ការផ្សាយពាណិជ្ជកម្មទេ។
 
-To manage your membership, check your qualifications, issue your digital pass, organise events, contact members, keep the association’s records and keep the system secure. We never sell your data or use it for advertising.
+To manage your membership and its yearly renewal, check your qualifications, issue your digital pass, organise events and check event payments, contact members, keep the association’s records accurate (including finding duplicate records) and keep the system secure. We never sell your data or use it for advertising.
 
 ## 4. មូលដ្ឋាន · Legal basis
 
@@ -29,21 +29,21 @@ Your consent to the declaration and your membership relationship with the associ
 
 ## 5. អ្នកណាអាចមើលព័ត៌មានរបស់អ្នក · Who can see your data
 
-អ្នកផ្ទាល់ អ្នកសម្របសម្រួល (ដើម្បីពិនិត្យពាក្យសុំ) និង អ្នកគ្រប់គ្រងសមាគម។ សមាជិកផ្សេងទៀតមិនអាចមើលព័ត៌មានរបស់អ្នកបានទេ (ព្រឹត្តិការណ៍បង្ហាញតែចំនួនអ្នកចូលរួម)។ រាល់ការមើល ការកែប្រែ និង ការនាំចេញ ដោយបុគ្គលិក ត្រូវបានកត់ត្រា។ យើងចែករំលែកតែជាមួយអ្នកផ្តល់សេវាបច្ចេកទេស (ម៉ាស៊ីនមេ) Google (ប្រសិនបើអ្នកជ្រើសចូលតាម Google) ឬ អាជ្ញាធរ នៅពេលច្បាប់តម្រូវ។
+អ្នកផ្ទាល់ អ្នកសម្របសម្រួល (ដើម្បីពិនិត្យពាក្យសុំ) និង អ្នកគ្រប់គ្រងសមាគម។ សមាជិកផ្សេងទៀតមិនអាចមើលព័ត៌មានរបស់អ្នកបានទេ (ព្រឹត្តិការណ៍បង្ហាញតែចំនួនអ្នកចូលរួម)។ អ្នករៀបចំព្រឹត្តិការណ៍ (អ្នកគ្រប់គ្រង និង អ្នកសម្របសម្រួល) ឃើញឈ្មោះ លេខសមាជិក ភេទ កន្លែងធ្វើការ ការបណ្តុះបណ្តាលបច្ចេកទេស និង វិក្កយបត្របង់ប្រាក់ របស់អ្នកដែលចូលរួម ហើយអាចនាំចេញជា Excel។ រាល់ការមើល ការកែប្រែ និង ការនាំចេញ ដោយបុគ្គលិក ត្រូវបានកត់ត្រា។ យើងចែករំលែកតែជាមួយអ្នកផ្តល់សេវាបច្ចេកទេស (ម៉ាស៊ីនមេ) Google (ប្រសិនបើអ្នកជ្រើសចូលតាម Google) ឬ អាជ្ញាធរ នៅពេលច្បាប់តម្រូវ។
 
-You, moderators (to review applications) and the association’s admins. Other members cannot see your information (events only show how many people joined). Every view, change and export of member data by staff is recorded. We only share data with our technical hosting provider, Google (only if you choose Google sign-in; photos from the original Google Form are stored in Google Drive), or authorities when the law requires it.
+You, moderators (to review applications) and the association’s admins. Other members cannot see your information (events only show how many people joined). Event organisers (admins and moderators) see the name, membership no., gender, workplace, technical training and payment receipt of the members who joined their event, and can export that list to Excel. Every view, change and export of member data by staff is recorded. We only share data with our technical hosting provider, Google (only if you choose Google sign-in; photos from the original Google Form are stored in Google Drive), or authorities when the law requires it.
 
 ## 6. រយៈពេលរក្សាទុក · How long we keep it
 
-ពេញមួយរយៈពេលដែលអ្នកជាសមាជិក។ ពាក្យសុំដែលមិនបានដាក់ស្នើក្នុងរយៈពេល 12 ខែ ត្រូវលុបដោយស្វ័យប្រវត្តិ។ ពេលអ្នកស្នើសុំលុប យើងលុបព័ត៌មានរបស់អ្នកក្នុងរយៈពេល 30 ថ្ងៃ។ កំណត់ត្រាសុវត្ថិភាពរក្សាទុក 2 ឆ្នាំ។ ឯកសារបម្រុងទុកអាចនៅមានព័ត៌មានរហូតដល់ 90 ថ្ងៃ។
+ពេញមួយរយៈពេលដែលអ្នកជាសមាជិក។ ពាក្យសុំដែលមិនបានដាក់ស្នើក្នុងរយៈពេល 12 ខែ ត្រូវលុបដោយស្វ័យប្រវត្តិ។ វិក្កយបត្របង់ប្រាក់ត្រូវលុប ពេលអ្នកបោះបង់កៅអី ឬ ពេលព្រឹត្តិការណ៍ត្រូវលុប។ ពេលអ្នកស្នើសុំលុប យើងលុបព័ត៌មានរបស់អ្នកក្នុងរយៈពេល 30 ថ្ងៃ។ កំណត់ត្រាសុវត្ថិភាពរក្សាទុក 2 ឆ្នាំ។ ឯកសារបម្រុងទុកអាចនៅមានព័ត៌មានរហូតដល់ 90 ថ្ងៃ។
 
-For as long as you are a member. Applications that are not submitted within 12 months are deleted automatically. When you ask for deletion we delete your data within 30 days. Security records are kept for 2 years. Backups may still contain your data for up to 90 days.
+For as long as you are a member. Applications that are not submitted within 12 months are deleted automatically. Payment receipts are deleted when you cancel your seat or the event is deleted. When you ask for deletion we delete your data within 30 days. Security records are kept for 2 years. Backups may still contain your data for up to 90 days.
 
 ## 7. សិទ្ធិរបស់អ្នក · Your rights
 
-មើល និង ទាញយកព័ត៌មានរបស់អ្នក (ព័ត៌មានផ្ទាល់ខ្លួន → ទាញយកទិន្នន័យរបស់ខ្ញុំ) កែតម្រូវព័ត៌មាន ដកការយល់ព្រម (ជ្រើស «មិនយល់ព្រម») ស្នើសុំលុបព័ត៌មាន (ព័ត៌មានផ្ទាល់ខ្លួន → ស្នើសុំលុប) និង ដាក់ពាក្យបណ្តឹងទៅសមាគម។
+មើល និង ទាញយកព័ត៌មានរបស់អ្នក (ព័ត៌មានផ្ទាល់ខ្លួន → ទាញយកទិន្នន័យរបស់ខ្ញុំ) កែតម្រូវព័ត៌មាន (ក្រោយរយៈពេលកែប្រែ ចុច «ស្នើកែប្រែ» ហើយអ្នកគ្រប់គ្រងនឹងពិនិត្យ និង ឆ្លើយតប) ដកការយល់ព្រម (ជ្រើស «មិនយល់ព្រម» – អាចធ្វើបានគ្រប់ពេល) ស្នើសុំលុបព័ត៌មាន (ព័ត៌មានផ្ទាល់ខ្លួន → ស្នើសុំលុប) និង ដាក់ពាក្យបណ្តឹងទៅសមាគម។
 
-See and download your data (Profile → Download my data), correct it, withdraw consent (choose “Not agree”), ask for deletion (Profile → Request deletion), and complain to the association.
+See and download your data (Profile → Download my data), correct it (after the editing period, tap “Request change” and an admin reviews and answers it), withdraw consent (choose “Not agree” – always possible), ask for deletion (Profile → Request deletion), and complain to the association.
 
 ## 8. សុវត្ថិភាព និង ខូគី · Security and cookies
 

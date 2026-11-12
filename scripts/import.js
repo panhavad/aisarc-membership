@@ -8,4 +8,6 @@ if (!file) {
   process.exit(1);
 }
 const r = importWorkbook(fs.readFileSync(file), { overwrite: process.argv.includes('--overwrite') });
-console.log(`Imported: ${r.inserted} new, ${r.updated} updated, ${r.skipped} skipped (already exist)`);
+console.log(`Imported: ${r.inserted} new, ${r.updated} updated, ${r.skipped} skipped (already imported)`);
+if (r.duplicates) console.log(`${r.duplicates} row(s) reuse an email that already exists – kept as REVIEW records without a login, flagged "Duplicate"`);
+if (r.flagged) console.log(`${r.flagged} imported record(s) look like a possible duplicate – check Members → Duplicate filter`);

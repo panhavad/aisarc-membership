@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import { FIELDS } from '../public/fields.js';
-import { db, findMemberByEmail, saveMember, toNumberText } from './db.js';
+import { db, findMemberByEmail, saveMember, toNumberText, duplicateMap } from './db.js';
 
 const clean = (v) => String(v ?? '').replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
 
@@ -24,8 +24,10 @@ const normalizers = {
 export function importWorkbook(buffer, { overwrite = false } = {}) {
   const wb = XLSX.read(buffer, { type: 'buffer', raw: false });
   const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
-  const result = { inserted: 0, updated: 0, skipped: 0 };
+  const result = { inserted: 0, updated: 0, skipped: 0, duplicates: 0, flagged: 0 };
   const insertUser = db.prepare('INSERT OR IGNORE INTO users (username, password_hash, role, member_id, must_change) VALUES (?,?,?,?,0)');
+  const seenDuplicate = db.prepare("SELECT 1 FROM members WHERE lower(json_extract(data, '$.duplicate_email')) = ? AND joined_at = ?");
+  const newIds = [];
 
   db.exec('BEGIN');
   try {
@@ -42,10 +44,19 @@ export function importWorkbook(buffer, { overwrite = false } = {}) {
       // Consent was given in the Google Form declaration at submission time.
       if (rec.consent) { rec.consent_at = rec.joined_at; rec.consent_version = 'google-form'; }
       const existing = rec.email ? findMemberByEmail(rec.email) : null;
-      if (existing && !overwrite) { result.skipped++; continue; }
+      if (existing && !overwrite) {
+        // The same form response imported again: nothing to do.
+        if (existing.joined_at === rec.joined_at || seenDuplicate.get(rec.email, rec.joined_at)) { result.skipped++; continue; }
+        // Another response with an email that is already used: keep it, flagged for an admin to compare.
+        // It gets no login (one login per email) and waits in REVIEW until an admin merges or deletes it.
+        newIds.push(saveMember(null, { ...rec, email: '', duplicate_email: rec.email, import_duplicate: true, status: 'REVIEW', applied_at: rec.joined_at }));
+        result.duplicates++;
+        continue;
+      }
       const id = saveMember(existing?.id, rec);
       if (existing) { result.updated++; continue; }
       result.inserted++;
+      newIds.push(id);
       // No password: members sign in with Google (same email) or get a temporary password from an admin.
       if (rec.email) insertUser.run(rec.email, null, 'member', id);
     }
@@ -54,5 +65,8 @@ export function importWorkbook(buffer, { overwrite = false } = {}) {
     db.exec('ROLLBACK');
     throw e;
   }
+  // Imported records that look like someone already in the system (same phone, email or name).
+  const dups = duplicateMap();
+  result.flagged = newIds.filter((id) => dups.has(id)).length;
   return result;
 }

@@ -88,6 +88,7 @@ export const FIELDS = [
   { key: 'joined_at', col: 0, section: 'membership', kh: 'ថ្ងៃចូលជាសមាជិក', en: 'Member since', edit: 'admin', type: 'datetime' },
   { key: 'member_no', section: 'membership', kh: 'លេខសមាជិក', en: 'Membership no.', edit: 'admin' },
   { key: 'status', section: 'membership', kh: 'ស្ថានភាព', en: 'Status', edit: 'admin', type: 'select', options: STATUSES.map((s) => s.key) },
+  { key: 'level', section: 'membership', kh: 'កម្រិតសមាជិក', en: 'Member level', edit: 'admin', type: 'level' },
   { key: 'expires_at', section: 'membership', kh: 'សុពលភាពដល់', en: 'Valid until', edit: 'admin', type: 'datetime' },
   { key: 'consent', col: 29, section: 'membership', kh: 'ការយល់ព្រមលើសេចក្តីប្រកាស', en: 'Declaration consent', type: 'select',
     options: [CONSENT_YES, CONSENT_NO], labels: { [CONSENT_YES]: 'យល់ព្រម · Agree', [CONSENT_NO]: 'មិនយល់ព្រម · Not agree' } },

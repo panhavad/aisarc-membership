@@ -30,6 +30,8 @@ async function t(id, title, fn) {
     process.stdout.write(`  ✓ ${id} ${title}\n`);
   } catch (e) {
     const skip = !!e?.skip;
+    // A dead server: include the end of its log so the cause is visible in the report.
+    if (/fetch failed/.test(e?.message) && srv?.log) e = new Error(`${e.message} – server log: ${srv.log().slice(-600)}`);
     results.push({ cat: current, id, title, ok: skip ? null : false, ms: Date.now() - start, err: String(e?.message || e).slice(0, 300) });
     process.stdout.write(`  ${skip ? '-' : '✗'} ${id} ${title}\n      ${e?.message}\n`);
   }
@@ -40,8 +42,8 @@ const eq = (a, b, msg) => assert(a === b, `${msg}: expected ${JSON.stringify(b)}
 // ---------------------------------------------------------------- server control
 const freePort = () => new Promise((res) => { const s = net.createServer(); s.listen(0, () => { const p = s.address().port; s.close(() => res(p)); }); });
 
-async function startServer(dataDir, extraEnv = {}) {
-  const port = await freePort();
+async function startServer(dataDir, extraEnv = {}, fixedPort = null) {
+  const port = fixedPort || await freePort();
   const child = spawn(process.execPath, ['server/index.js'], {
     cwd: ROOT,
     env: { ...process.env, NODE_ENV: 'production', NODE_NO_WARNINGS: '1', PORT: String(port), DATA_DIR: dataDir,
@@ -344,6 +346,166 @@ try {
     eq((await A.put(`/api/events/${evUp}`, { title: 'Upcoming', starts_at: iso(5), seats: 0 })).status, 200, 'unlimited ok');
     eq((await mem2.c.post('/api/events', { title: 'x', starts_at: iso(3) })).status, 403, 'member create');
   });
+  let evPaid;
+  await t('E-07', 'Price and "registration closes N days before": closed events refuse new joiners', async () => {
+    evPaid = (await A.post('/api/events', { title: 'Paid workshop', starts_at: iso(10), price: '12.50', close_days: 3 })).json.id;
+    const e = (await mem2.c.get(`/api/events/${evPaid}`)).json;
+    eq(e.price, 12.5, 'price'); eq(e.close_days, 3, 'close_days'); eq(e.registration_open, true, 'open');
+    eq(e.registration_closes_at, new Date(new Date(e.starts_at).getTime() - 3 * 864e5).toISOString(), 'closing time');
+    const closed = (await A.post('/api/events', { title: 'Closed', starts_at: iso(2), close_days: 3 })).json.id;
+    eq((await mem2.c.get(`/api/events/${closed}`)).json.registration_open, false, 'closed');
+    const r = await mem2.c.post(`/api/events/${closed}/join`);
+    eq(r.status, 400, 'join refused'); assert(/closed/i.test(r.json.error), 'closed message');
+    eq((await A.post('/api/events', { title: 'neg', starts_at: iso(5), price: '-5', close_days: -2 })).status, 200, 'negative values clamped');
+  });
+  let billName;
+  await t('E-08', 'Payment proof: joined member uploads a bill; only the member and staff can open it', async () => {
+    const outsider = await activeMember(B, A);
+    eq((await outsider.c.post(`/api/events/${evPaid}/bill`, { dataUrl: PNG_URL })).status, 403, 'must join first');
+    await mem2.c.post(`/api/events/${evPaid}/join`);
+    eq((await mem2.c.post(`/api/events/${evPaid}/bill`, { dataUrl: 'data:text/html;base64,PGgxPg==' })).status, 400, 'html refused');
+    const e = (await mem2.c.post(`/api/events/${evPaid}/bill`, { dataUrl: PNG_URL })).json;
+    assert(e.my_bill && e.my_bill_at, 'bill stored');
+    billName = e.my_bill.slice(5);
+    assert(new RegExp(`^ev${evPaid}-${mem2.m.id}-bill-`).test(billName), 'file name');
+    eq((await mem2.c.get(`/api/files/${billName}`, { raw: true })).status, 200, 'owner can open');
+    eq((await outsider.c.get(`/api/files/${billName}`, { raw: true })).status, 403, 'other member refused');
+    eq((await MOD.get(`/api/files/${billName}`, { raw: true })).status, 200, 'staff can open');
+    const p = (await MOD.get(`/api/events/${evPaid}`)).json.participants.find((x) => x.member_id === mem2.m.id);
+    eq(p.gender, FULL.gender, 'gender'); eq(p.workplace, FULL.workplace, 'workplace'); eq(p.bill, e.my_bill, 'bill in list');
+    eq((await mem2.c.get(`/api/events/${evPaid}`)).json.participants.length, 0, 'members still see no names');
+  });
+  await t('E-09', 'Joiner list export to Excel (staff only): name, ID, gender, workplace, training, bill link', async () => {
+    eq((await mem2.c.get(`/api/events/${evPaid}/export.xlsx`)).status, 403, 'member refused');
+    const r = await MOD.get(`/api/events/${evPaid}/export.xlsx`, { raw: true });
+    eq(r.status, 200, 'status');
+    const ws = XLSX.read(r.buf).Sheets.Joiners;
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    const head = rows[0].join('|');
+    for (const h of ['Name', 'ID', 'Gender', 'Place of work', 'Technical training', 'Payment proof']) assert(head.includes(h), `column ${h}`);
+    eq(rows.length, 2, 'header + 1 joiner');
+    assert(rows[1].includes(mem2.m.member_no) && rows[1].includes('View bill'), 'joiner row with bill');
+    const link = Object.values(ws).find((c) => c?.l)?.l?.Target || '';
+    assert(link.endsWith(`/api/files/${billName}`), 'bill hyperlink needs sign-in (no embedded image)');
+    assert((await A.get('/api/audit?q=event.export')).json.length >= 1, 'export audited');
+  });
+  await t('E-10', 'Cancelling the seat deletes the payment proof file', async () => {
+    eq((await mem2.c.del(`/api/events/${evPaid}/join`)).status, 200, 'left');
+    const file = path.join(dataDir, 'uploads', billName);
+    for (let i = 0; i < 20 && fs.existsSync(file); i++) await new Promise((r) => setTimeout(r, 100));
+    eq(fs.existsSync(file), false, 'file removed');
+  });
+
+  // ------------------------------------------------------------ settings, levels, change requests
+  section('Settings, levels & change requests');
+  await t('G-01', 'Settings are admin-only and validated', async () => {
+    eq((await MOD.get('/api/settings')).status, 403, 'moderator'); eq((await mem2.c.put('/api/settings', {})).status, 403, 'member');
+    eq((await A.put('/api/settings', { renewal_date: '02-30' })).status, 400, 'impossible date');
+    eq((await A.put('/api/settings', { inactive_years: 0 })).status, 400, 'years range');
+    eq((await A.put('/api/settings', { edit_days: 'abc' })).status, 400, 'edit days');
+    eq((await A.put('/api/settings', { levels: [{ key: 'member', kh: 'ក', en: 'M', color: 'red;}' }] })).status, 400, 'colour must be #hex');
+    eq((await A.put('/api/settings', { levels: [{ key: 'x', kh: 'ក', en: 'X' }] })).status, 400, 'member level required');
+    eq((await mem2.c.get('/api/me')).json.settings.edit_days, '30', 'members get public settings');
+  });
+  await t('G-02', 'Member levels: admin assigns; unknown levels ignored; removed level falls back to member', async () => {
+    const { m } = await activeMember(B, A);
+    eq((await A.put(`/api/members/${m.id}`, { level: 'leader' })).json.level, 'leader', 'assigned');
+    eq((await A.put(`/api/members/${m.id}`, { level: 'emperor' })).json.level, 'leader', 'unknown ignored');
+    const levels = (await A.get('/api/settings')).json.levels.filter((l) => l.key !== 'leader');
+    eq((await A.put('/api/settings', { levels: [...levels, { kh: 'លេខាធិការ', en: 'Secretary', color: '#0F766E' }] })).status, 200, 'levels saved');
+    eq((await A.get(`/api/members/${m.id}`)).json.level, 'member', 'fallback');
+    assert((await A.get('/api/settings')).json.levels.some((l) => l.key === 'secretary' && l.color === '#0f766e'), 'new level key + colour');
+    eq((await mem2.c.put('/api/me', { level: 'secretary' })).json.member.level, 'member', 'members cannot set their level');
+  });
+  let lockedMem;
+  await t('G-03', 'After the edit window the profile is locked (consent stays editable)', async () => {
+    lockedMem = await activeMember(B, A);
+    eq((await A.put('/api/settings', { edit_days: '0' })).status, 200, 'set 0 days');
+    const me = (await lockedMem.c.get('/api/me')).json.member;
+    eq(me.lock.locked, true, 'locked');
+    const r = await lockedMem.c.put('/api/me', { address: 'Changed' });
+    eq(r.status, 403, 'edit refused'); eq(r.json.locked, true, 'locked flag');
+    eq((await lockedMem.c.post('/api/upload', { field: 'photo', dataUrl: PNG_URL })).status, 403, 'upload refused');
+    eq((await lockedMem.c.put('/api/me', { consent: 'យល់ព្រម' })).status, 200, 'consent still editable');
+    eq((await (await registerApplicant(B)).c.put('/api/me', { address: 'x' })).status, 200, 'applicants never locked');
+  });
+  await t('G-04', 'Change request per section: admin rejects (reason required) or approves (applied)', async () => {
+    eq((await lockedMem.c.post('/api/me/change-requests', { section: 'membership', changes: { level: 'board' } })).status, 400, 'protected section');
+    eq((await lockedMem.c.post('/api/me/change-requests', { section: 'contact', changes: {} })).status, 400, 'nothing changed');
+    const r1 = (await lockedMem.c.post('/api/me/change-requests', { section: 'personal', changes: { address: 'New address 1', member_no: 'HACK', phone: '011111111' }, note: 'moved' })).json;
+    eq(r1.status, 'pending', 'pending'); eq(Object.keys(r1.changes).join(), 'address', 'only section fields kept');
+    eq((await lockedMem.c.get('/api/me')).json.member.address, FULL.address, 'not applied yet');
+    assert((await A.get('/api/members?s=CHG')).json.some((m) => m.id === lockedMem.m.id), 'CHG filter');
+    eq((await MOD.post(`/api/change-requests/${r1.id}/decision`, { decision: 'approve' })).status, 403, 'moderator cannot decide');
+    eq((await A.post(`/api/change-requests/${r1.id}/decision`, { decision: 'reject' })).status, 400, 'reason required');
+    eq((await A.post(`/api/change-requests/${r1.id}/decision`, { decision: 'reject', reason: 'Please give the full address' })).json.status, 'rejected', 'rejected');
+    eq((await lockedMem.c.get('/api/me/change-requests')).json[0].reason, 'Please give the full address', 'member sees reason');
+    const r2 = (await lockedMem.c.post('/api/me/change-requests', { section: 'personal', changes: { address: 'No. 5, Street 7, Phnom Penh' } })).json;
+    eq((await A.post(`/api/change-requests/${r2.id}/decision`, { decision: 'approve' })).json.status, 'approved', 'approved');
+    eq((await lockedMem.c.get('/api/me')).json.member.address, 'No. 5, Street 7, Phnom Penh', 'applied');
+    const acts = (await A.get(`/api/members/${lockedMem.m.id}/audit`)).json.map((x) => x.action);
+    for (const a of ['change.request', 'change.reject', 'change.approve']) assert(acts.includes(a), `audit ${a}`);
+    eq((await A.put('/api/settings', { edit_days: '30' })).status, 200, 'reset');
+  });
+  let lapsed;
+  await t('G-05', 'Annual renewal date: memberships older than the last renewal date become PENDING', async () => {
+    lapsed = await activeMember(B, A);
+    const fresh = await activeMember(B, A);
+    const d = db(); d.prepare('UPDATE members SET joined_at = ? WHERE id = ?').run(iso(-4 * 365), lapsed.m.id); d.close();
+    eq((await A.put('/api/settings', { renewal_enabled: true, renewal_date: '01-01' })).status, 200, 'enabled');
+    const m = (await A.get(`/api/members/${lapsed.m.id}`)).json;
+    eq(m.status, 'PENDING', 'lapsed → PENDING'); assert(m.pending_since, 'pending_since');
+    eq((await A.get(`/api/members/${fresh.m.id}`)).json.status, 'ACTIVE', 'recent member still ACTIVE');
+    eq((await A.get(`/api/members/${fresh.m.id}`)).json.expires_at.slice(5, 10) === '12-31', true, 'valid until the renewal date (Phnom Penh midnight)');
+  });
+  await t('G-06', 'Auto-INACTIVE after N years PENDING (daily job), with reason, audited', async () => {
+    eq((await A.put('/api/settings', { inactive_enabled: true, inactive_years: 1 })).status, 200, 'enabled');
+    const port = Number(new URL(srv.base).port);
+    await stopServer(srv); srv = await startServer(dataDir, {}, port);
+    const m = (await A.get(`/api/members/${lapsed.m.id}`)).json;
+    eq(m.status, 'INACTIVE', 'inactive'); eq(m.inactive_reason, 'not_renewed', 'reason');
+    assert((await A.get(`/api/members/${lapsed.m.id}/audit`)).json.some((x) => x.action === 'member.auto_inactive'), 'audited');
+    eq((await A.put('/api/settings', { renewal_enabled: false, inactive_enabled: false })).status, 200, 'reset');
+  });
+
+  // ------------------------------------------------------------ duplicates & filtered export
+  section('Duplicates & filtered export');
+  let dupA, dupB;
+  await t('X-01', 'Possible duplicates are flagged (same phone / email / name) and filterable', async () => {
+    dupA = (await A.post('/api/members', { name_kh: 'ស្ទួន មួយ', name_en: 'DUPLICATE ONE', phone: '099 888 777', email: 'dup.one@example.com' })).json;
+    dupB = (await A.post('/api/members', { name_kh: 'ស្ទួន ពីរ', name_en: 'SOMEONE ELSE', phone: '+855 99888777', email: 'dup.two@example.com' })).json;
+    const a = (await A.get(`/api/members/${dupA.id}`)).json;
+    assert(a.dups.some((d) => d.id === dupB.id && d.reasons.includes('same phone')), 'phone match (normalised)');
+    const list = (await MOD.get('/api/members?s=DUP')).json.map((m) => m.id);
+    assert(list.includes(dupA.id) && list.includes(dupB.id), 'DUP filter');
+  });
+  await t('X-02', '"Not a duplicate" hides the flag for that pair (admin only)', async () => {
+    eq((await MOD.post(`/api/members/${dupA.id}/not-duplicate`)).status, 403, 'moderator refused');
+    eq((await A.post(`/api/members/${dupA.id}/not-duplicate`)).json.dups.some((d) => d.id === dupB.id), false, 'cleared');
+    eq((await A.get(`/api/members/${dupB.id}`)).json.dups.some((d) => d.id === dupA.id), false, 'cleared both ways');
+  });
+  await t('X-03', 'Import: a second response with a used email is kept as a flagged REVIEW record without login; re-import skips', async () => {
+    const file = path.join(tmp, 'import-dup.xlsx');
+    const header = Array.from({ length: 30 }, (_, i) => `c${i}`);
+    const row = Array(30).fill(''); row[0] = '11/1/2026 8:00:00'; row[1] = 'dup.one@example.com'; row[3] = 'ស្ទួន មួយ'; row[4] = 'DUPLICATE ONE'; row[29] = 'យល់ព្រម';
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, row]), 'Form');
+    fs.writeFileSync(file, XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+    const run = () => execSync(`"${process.execPath}" scripts/import.js "${file}"`, { cwd: ROOT, encoding: 'utf8', env: { ...process.env, DATA_DIR: dataDir, NODE_NO_WARNINGS: '1' } });
+    assert(/1 row\(s\) reuse an email/.test(run()), 'duplicate reported');
+    const copies = (await A.get('/api/members?q=duplicate%20one')).json.filter((m) => m.duplicate_email === 'dup.one@example.com');
+    eq(copies.length, 1, 'flagged copy created'); eq(copies[0].status, 'REVIEW', 'waits for review'); eq(copies[0].email, null, 'no login email');
+    assert(copies[0].dups.some((d) => d.id === dupA.id && d.reasons.includes('same email')), 'linked to original');
+    assert(/0 new, 0 updated, 1 skipped/.test(run()), 're-import skipped');
+    eq((await A.get('/api/members?q=duplicate%20one')).json.length, 2, 'no extra copy');
+  });
+  await t('X-04', 'Members export follows the current search and filter', async () => {
+    const want = (await A.get('/api/members?s=DUP')).json.length;
+    const rows = (u) => A.get(u, { raw: true }).then((r) => XLSX.utils.sheet_to_json(XLSX.read(r.buf).Sheets.Members, { header: 1 }).length - 1);
+    eq(await rows('/api/export.xlsx?s=DUP'), want, 'DUP filter');
+    eq(await rows('/api/export.xlsx?q=duplicate%20one'), 2, 'search');
+    eq(await rows('/api/export.xlsx?s=REVIEW&q=duplicate%20one'), 1, 'search + filter');
+    eq((await A.get('/api/export.xlsx?s=ALL&s=DUP')).status, 200, 'repeated parameter handled');
+  });
 
   // ------------------------------------------------------------ privacy
   section('Privacy & data-protection rights');
@@ -430,7 +592,10 @@ try {
     const anon = client(B);
     const urls = [['GET', '/api/me'], ['GET', '/api/members'], ['GET', '/api/members/1'], ['GET', '/api/users'], ['GET', '/api/audit'],
       ['GET', '/api/events'], ['GET', '/api/association'], ['GET', '/api/export.xlsx'], ['GET', '/api/me/export'], ['GET', '/api/privacy/requests'],
-      ['POST', '/api/backup'], ['PUT', '/api/me'], ['POST', '/api/upload'], ['GET', '/api/files/1-photo-0a.png']];
+      ['POST', '/api/backup'], ['PUT', '/api/me'], ['POST', '/api/upload'], ['GET', '/api/files/1-photo-0a.png'],
+      ['GET', '/api/settings'], ['PUT', '/api/settings'], ['GET', '/api/change-requests'], ['POST', '/api/change-requests/1/decision'],
+      ['GET', '/api/me/change-requests'], ['POST', '/api/me/change-requests'], ['POST', '/api/me/request-file'],
+      ['GET', '/api/events/1/export.xlsx'], ['POST', '/api/events/1/bill'], ['POST', '/api/members/1/not-duplicate'], ['GET', '/api/files/ev1-1-bill-0a.png']];
     for (const [m, u] of urls) eq((await (m === 'GET' ? anon.get(u) : m === 'PUT' ? anon.put(u, {}) : anon.post(u, {}))).status, 401, `${m} ${u}`);
   });
   await t('S-02', 'Members cannot use staff or admin APIs (403)', async () => {
@@ -438,6 +603,10 @@ try {
     eq((await mem3.c.post('/api/backup', {})).status, 403, 'backup');
     eq((await mem3.c.put('/api/association', { fee: '0' })).status, 403, 'association');
     eq((await mem3.c.post('/api/members/1/review', { decision: 'approve' })).status, 403, 'review');
+    for (const u of ['/api/settings', '/api/change-requests', '/api/events/1/export.xlsx']) eq((await mem3.c.get(u)).status, 403, u);
+    eq((await mem3.c.put('/api/settings', { edit_days: '' })).status, 403, 'settings');
+    eq((await mem3.c.post('/api/change-requests/1/decision', { decision: 'approve' })).status, 403, 'decide change');
+    eq((await mem3.c.post('/api/members/1/not-duplicate')).status, 403, 'not-duplicate');
   });
   await t('S-03', 'Moderators cannot use admin-only APIs (403)', async () => {
     eq((await mod2.put(`/api/members/${mem3.m.id}`, { name_en: 'X' })).status, 403, 'edit member');
@@ -445,6 +614,8 @@ try {
     eq((await mod2.post(`/api/members/${mem3.m.id}/status`, { status: 'INACTIVE' })).status, 403, 'status');
     eq((await mod2.get('/api/users')).status, 403, 'users'); eq((await mod2.get('/api/export.xlsx')).status, 403, 'export');
     eq((await mod2.post('/api/restore', Buffer.from('x'))).status, 403, 'restore');
+    eq((await mod2.put('/api/settings', { edit_days: '' })).status, 403, 'settings');
+    eq((await mod2.get('/api/change-requests')).status, 403, 'change requests');
   });
   await t('S-04', 'IDOR: a member cannot open another member’s files', async () => {
     const other = await activeMember(B, A);
@@ -654,7 +825,21 @@ await t('C-01', 'No known vulnerabilities in production dependencies (npm audit,
   } catch { r = null; }
   if (!r?.ok) throw Object.assign(new Error('npm registry and OSV not reachable – run `npm audit --omit=dev` manually'), { skip: true });
   const res = (await r.json()).results || [];
-  const vulnerable = pkgs.filter((p, i) => res[i]?.vulns?.length).map((p) => `${p.name}@${p.version}`);
+  // Some advisories list every version as affected because the fix is not on the npm registry
+  // (e.g. SheetJS `xlsx`, fixed builds ship from cdn.sheetjs.com). OSV records the real bound in
+  // `last_known_affected_version_range` ("< 0.20.2"); a version at/above that bound is not affected.
+  const semver = (v) => String(v).split(/[.+-]/).slice(0, 3).map((n) => parseInt(n, 10) || 0);
+  const gte = (a, b) => { const x = semver(a); const y = semver(b); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i]; return true; };
+  const vulnerable = [];
+  for (const [i, p] of pkgs.entries()) {
+    for (const { id } of res[i]?.vulns || []) {
+      const v = await (await fetch(`https://api.osv.dev/v1/vulns/${encodeURIComponent(id)}`, { signal: AbortSignal.timeout(30000) })).json();
+      const bounds = (v.affected || []).filter((a) => a.package?.name === p.name)
+        .map((a) => /^<\s*([\d.]+)$/.exec(a.database_specific?.last_known_affected_version_range || '')?.[1]);
+      if (bounds.length && bounds.every((b) => b && gte(p.version, b))) continue;
+      vulnerable.push(`${p.name}@${p.version} (${id})`);
+    }
+  }
   eq(vulnerable.length, 0, `vulnerable packages (OSV, ${pkgs.length} checked): ${vulnerable.join(', ')}`);
 });
 await t('C-02', 'Secrets and personal data are excluded from git and the Docker image', async () => {
@@ -708,18 +893,20 @@ md.push('## Compliance mapping', '',
   '| Principle | Control in the system | Verified by |', '| --- | --- | --- |',
   '| Lawfulness & consent | Declaration and privacy notice must be accepted; time and version recorded; consent can be withdrawn | R-02, R-03, R-04, W-07, D-03, D-07 |',
   '| Transparency | Bilingual, versioned privacy notice readable without an account; members asked again when it changes | P-03, D-03 |',
-  '| Purpose limitation & data minimisation | Members see only their own data; event lists show counts only; exports and backups admin-only; no third-party fonts | P-03, E-05, S-02, S-03 |',
-  '| Accuracy | Members correct their own data; admins correct protected fields | R-08, A-01 |',
-  '| Storage limitation | Unsubmitted applications deleted after 12 months; audit log 2 years; server safety backups 90 days | T-01, T-02 |',
-  '| Integrity & confidentiality | Hashed passwords, role-based access, session revocation, rate limits, CSP, upload checks, encrypted backups | S-01 … S-27, B-01 … B-04, H-01 |',
-  '| Accountability | Audit log of access, changes, exports, backups and deletions (field names only) | D-04, D-05, D-06, B-03 |',
-  '| Data-subject rights | Download own data, correct, withdraw consent, request deletion | D-01, D-02, R-08, W-07 |',
+  '| Purpose limitation & data minimisation | Members see only their own data; event lists show counts only; joiner details, bills and exports staff-only; settings and backups admin-only; no third-party fonts | P-03, E-05, E-08, E-09, S-02, S-03, G-01 |',
+  '| Accuracy | Members correct their own data; after the edit window via change requests reviewed by an admin; duplicate records are flagged | R-08, A-01, G-03, G-04, X-01 … X-03 |',
+  '| Storage limitation | Unsubmitted applications deleted after 12 months; audit log 2 years; server safety backups 90 days; payment proofs deleted with the seat or event | T-01, T-02, E-10 |',
+  '| Integrity & confidentiality | Hashed passwords, role-based access, session revocation, rate limits, CSP, upload checks, encrypted backups, owner/staff-only bill files | S-01 … S-27, B-01 … B-04, H-01, E-08 |',
+  '| Accountability | Audit log of access, changes, exports, backups, deletions, change-request decisions and automatic status changes (field names only) | D-04, D-05, D-06, B-03, E-09, G-04, G-06 |',
+  '| Data-subject rights | Download own data, correct (directly or by change request), withdraw consent at any time (also when locked), request deletion | D-01, D-02, R-08, W-07, G-03, G-04 |',
   '', '## Verified manually in a browser', '',
   'Checked in Microsoft Edge (headless, phone and desktop sizes) during development:', '',
   '- All pages render under the strict Content-Security-Policy with **no CSP violations**; the self-hosted Khmer font loads.',
   '- Stored XSS payloads (`<img onerror>`, `<script>`, `<svg onload>`) in event and member fields are shown as text and **never execute**.',
   '- Registration → profile completion → submit, the system tour and the **?** button work on a phone-sized screen.',
   '- Event sections (happening now / upcoming / past) and the Google Maps button.',
+  '- v1.8: logo-blue and level-coloured cards, locked profile with per-section change requests, admin settings and levels editor,',
+  '  duplicate flags and filter, event price / registration deadline / payment-proof upload, joiner list and Excel export.',
   '', '## How to run', '', '```bash', 'npm install', 'npm test        # writes docs/TEST-REPORT.md; exits non-zero if anything fails', '```', '');
 fs.mkdirSync(path.dirname(REPORT), { recursive: true });
 fs.writeFileSync(REPORT, md.join('\n'));

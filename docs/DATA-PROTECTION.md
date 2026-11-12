@@ -34,8 +34,11 @@ This document describes how the AISARC Membership Portal protects members' perso
 | Professional: occupation, training, degrees, workplace, department, experience, council registration no. / date | Checking eligibility | Consent + membership | Member, moderators, admins | As above |
 | Documents: photo, council certificate | Pass photo, verification | Consent | Member, moderators, admins (certificate views are logged) | As above |
 | Account: email, password hash, role, sign-in method | Security, access control | Membership | Admins (hash never shown) | As above |
-| Membership: number, status, dates, review decisions, consent and privacy-notice records | Administration, proof of consent | Membership + legal obligation (records) | Member, moderators, admins | As above |
+| Membership: number, status, dates, level, review decisions, consent and privacy-notice records | Administration, proof of consent | Membership + legal obligation (records) | Member, moderators, admins | As above |
 | Event participation | Organising events | Membership | Member (own), moderators, admins | As above |
+| Event payment proofs (receipt photo / PDF uploaded by the member) | Checking event fees were paid | Membership (the member chooses to join a paid event) | Member (own), moderators, admins (views are logged; exports contain sign-in-protected links, not the images) | Deleted when the member cancels the seat or the event is deleted; otherwise as above |
+| Change requests (old and new values per section, note, decision, reason) | Correcting locked profiles under admin control | Membership + accuracy of records | Member (own), admins | Kept with the record; uploaded files of rejected/cancelled requests are deleted immediately |
+| Duplicate flags (`duplicate_email`, “not a duplicate” decisions) | Keeping one accurate record per person | Legitimate interest (accurate records) | Moderators, admins | As above |
 | Audit log: time, staff account, action, record id, field **names**, IP address | Security and accountability | Legitimate interest (security) | Admins | 2 years, then deleted automatically |
 | Unsubmitted applications (DRAFT) | Registration | Consent | Applicant, staff | Deleted automatically after 12 months without activity |
 | Server safety backups (`/data/backups`) | Disaster recovery | Legitimate interest | Server administrator | 90 days, then deleted automatically |
@@ -53,7 +56,7 @@ involved when a member chooses *Sign in with Google*, and for photo links import
 | --- | --- | --- |
 | Be informed | Bilingual privacy notice at `/#/privacy`, linked on every page and required at registration | – |
 | Access / portability | Profile → **My data & privacy → Download my data** (JSON with all stored data and the activity on their record) | Immediate |
-| Correction | Members edit their profile; protected fields (membership no., dates, login email) are corrected by an admin on request | ≤ 30 days |
+| Correction | Members edit their profile during the edit window set by the admin (default 30 days after approval). After that the profile is locked and members send a **change request** per section; the admin approves (applied immediately) or rejects with a written reason. Consent can always be changed directly. Protected fields (membership no., dates, login email, level) are corrected by an admin | ≤ 30 days |
 | Withdraw consent | Declaration → **Not agree**: membership becomes INACTIVE and the change is recorded with date and time | Immediate |
 | Erasure | Profile → **Request deletion** → appears in Admin tab → *Privacy requests* with a due date; the admin deletes the record (Danger zone) | ≤ 30 days |
 | Object / complain | Contact the association (Association tab) | ≤ 30 days |
@@ -110,6 +113,12 @@ compromise):
 - **Backups:** always set a passphrase, store the file and the passphrase separately, keep at most 90 days of backups,
   and delete older ones.
 - Handle **deletion requests within 30 days** (Admin tab → Privacy requests).
+- Answer **change requests** promptly (Admin tab → Change requests, or the *Change requests* filter in Members). When
+  rejecting, write a clear reason – the member sees it.
+- Check the **Duplicate** filter after imports: compare the records, delete the extra one (Danger zone), or mark
+  "Not a duplicate".
+- **Payment proofs** are only for checking event fees. Do not forward receipt images; the joiner Excel export contains
+  links that require a staff sign-in, not the images themselves.
 - Review the **audit log** monthly for unusual access, for example many record views or exports, or failed sign-ins.
 - Remove staff accounts immediately when someone leaves their role.
 

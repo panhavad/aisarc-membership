@@ -2,12 +2,12 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { db, DATA_DIR, UPLOAD_DIR } from './db.js';
+import { db, DATA_DIR, UPLOAD_DIR, UPLOAD_NAME } from './db.js';
 import { sessionVersion, bumpSessionVersion } from './auth.js';
 
 // Tables in dependency order (parents first). The audit log is deliberately NOT part of backups,
 // so restoring an old backup can never erase the record of who did what.
-const TABLES = ['members', 'users', 'settings', 'events', 'event_participants'];
+const TABLES = ['members', 'users', 'settings', 'events', 'event_participants', 'change_requests'];
 const FORMAT = 'aisarc-backup';
 export const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 
@@ -90,7 +90,7 @@ export function restoreBackup(buf, passphrase = '') {
   db.exec('BEGIN');
   try {
     for (const t of [...TABLES].reverse()) db.exec(`DELETE FROM ${t}`);
-    db.exec("DELETE FROM sqlite_sequence WHERE name IN ('members','users','events')");
+    db.exec("DELETE FROM sqlite_sequence WHERE name IN ('members','users','events','change_requests')");
     for (const t of TABLES) {
       const cols = new Set(db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name));
       const rows = (doc.tables[t] || []).filter((r) => r && typeof r === 'object');
@@ -116,7 +116,7 @@ export function restoreBackup(buf, passphrase = '') {
   const keep = new Set();
   for (const [name, b64] of Object.entries(doc.files || {})) {
     const safe = path.basename(name);
-    if (!/^(\d+-(photo|cert_file)|assoc-qr)-[0-9a-f]+\.(jpg|png|webp|pdf)$/.test(safe) || typeof b64 !== 'string') continue;
+    if (!UPLOAD_NAME.test(safe) || typeof b64 !== 'string') continue;
     fs.writeFileSync(path.join(UPLOAD_DIR, safe), Buffer.from(b64, 'base64'));
     keep.add(safe);
   }
