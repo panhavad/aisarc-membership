@@ -1109,7 +1109,10 @@ const home = () => (state.user?.member_id
 // ---------- router ----------
 async function route() {
   const path = location.hash.slice(1).split('?')[0] || '/';
-  if (!state.config) state.config = await api('/api/config').catch(() => ({}));
+  if (!state.config) {
+    state.config = await api('/api/config').catch(() => ({}));
+    if (state.config.version) $('#ver').textContent = `AISARC Membership · v${state.config.version}`;
+  }
   if (!state.user && !state.checked) {
     state.checked = true;
     try {

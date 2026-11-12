@@ -7,3 +7,4 @@ updater
 .env.*
 *.json.gz
 README.md
+docs

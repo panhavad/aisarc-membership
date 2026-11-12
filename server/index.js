@@ -20,6 +20,7 @@ import { createBackup, restoreBackup } from './backup.js';
 import { registerEvents } from './events.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
+const VERSION = JSON.parse(fs.readFileSync(path.join(PUBLIC, '..', 'package.json'), 'utf8')).version;
 const PORT = Number(process.env.PORT || 3000);
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/+$/, '');
@@ -198,8 +199,8 @@ function createApplicant({ name_kh = '', name_en = '', email, phone = '' }, pass
 class UserError extends Error {}
 
 // ---------- public ----------
-app.get('/healthz', (req, res) => res.json({ ok: true }));
-app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, googleRedirectUri: GOOGLE_REDIRECT_URI }));
+app.get('/healthz', (req, res) => res.json({ ok: true, version: VERSION }));
+app.get('/api/config', (req, res) => res.json({ version: VERSION, googleClientId: GOOGLE_CLIENT_ID, googleRedirectUri: GOOGLE_REDIRECT_URI }));
 
 app.post('/api/login', async (req, res) => {
   const username = String(req.body?.username || '').trim().slice(0, 200);
@@ -670,4 +671,4 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   res.status(status).json({ error: msg });
 });
 
-app.listen(PORT, () => console.log(`AISARC membership running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`AISARC membership v${VERSION} running on http://localhost:${PORT}`));
