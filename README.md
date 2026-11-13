@@ -1,6 +1,6 @@
 # AISARC Membership Portal · ប្រព័ន្ធគ្រប់គ្រងសមាជិក
 
-**Version 1.9.0** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
+**Version 1.9.1** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
 (សមាគម គិលានុបដ្ឋាកឯកទេសដាក់ថ្នាំសណ្តំ និង ប្រពោធនកម្មកម្ពុជា).
 
 <p>
@@ -514,6 +514,7 @@ See [.env.example](.env.example) for examples.
 | Members can't sign in with their phone number | That was removed for security (v1.5). Use Google sign-in, or an admin issues a temporary password. |
 | "Temporary password has expired" | Ask an admin to reset it again (valid 72 hours). |
 | No auto-update after a push | `docker compose logs updater`; check `GIT_TOKEN` / `GIT_REPO_URL` / branch. |
+| A new version is deployed but the site looks the same | Fixed in 1.9.1 (build-specific asset URLs). If Cloudflare is used, you can also set *Caching › Browser Cache TTL* to **Respect Existing Headers**. |
 | Cookies not Secure / no HSTS header | Set `PUBLIC_URL=https://…` and remove `COOKIE_SECURE=false` from `.env`. |
 | A member says "Information locked" | The edit window after approval has passed (Admin tab → Settings). They use **Request change**, or an admin edits the record. |
 | Joiner Excel shows "View bill" instead of the picture | By design: the receipt is a link to the portal (staff sign-in required), so the file never contains the images. |
@@ -526,7 +527,8 @@ The version is set in `package.json` (`npm version minor`) and shown on the logi
 
 | Version | Changes |
 | --- | --- |
-| **1.9.0** | Every input field has a leading icon; consistent spacing for fields, labels and buttons; system-user rows no longer overflow on phones. Change password moved from the header to **My account** (Profile, or the new **Account** tab for staff without a member profile). Admin / moderator accounts can have a **sign-in email**; when one email opens several accounts (member + admin / moderator) the person **chooses the account** after signing in (single-use, 5-minute, HttpOnly choice) and can **switch account** later. Place of birth and current address are a choice of the 25 provinces; existing free text is mapped automatically and the original wording kept for admins. |
+| **1.9.1** | Updates show up immediately after every deploy: JavaScript and CSS load from a build-specific URL (`/v/<build>/…`), so browsers and Cloudflare can no longer serve an old copy for hours. |
+| 1.9.0 | Every input field has a leading icon; consistent spacing for fields, labels and buttons; system-user rows no longer overflow on phones. Change password moved from the header to **My account** (Profile, or the new **Account** tab for staff without a member profile). Admin / moderator accounts can have a **sign-in email**; when one email opens several accounts (member + admin / moderator) the person **chooses the account** after signing in (single-use, 5-minute, HttpOnly choice) and can **switch account** later. Place of birth and current address are a choice of the 25 provinces; existing free text is mapped automatically and the original wording kept for admins. |
 | 1.8.2 | Faster admin screens: the members list is paged on the server (10 by default, 20 / 50 selectable, remembered per device) with chip counts from the server; export offers **current page** or **all matching**; the audit log shows the last hour by default, loads only when scrolled into view, and offers longer periods / older entries on demand; record history loads 30 entries at a time; skeleton placeholders replace every loading spinner. |
 | 1.8.1 | No emoji anywhere: every symbol in the interface is replaced by a consistent SVG line icon (check, close, edit, alert, lock, file, download, upload, payment, workplace, training…); the test report uses plain Pass / Fail; automated check C-05 keeps emoji out of the UI and documentation. |
 | 1.8.0 | Events: price, registration closes N days before the start, member payment-proof upload, joiner list with gender / workplace / technical training / bill, joiner export to Excel. Admin settings: profile edit window with locked profiles and per-section change requests, yearly renewal date (automatic PENDING), automatic INACTIVE after N years PENDING, member levels with card colours. Possible-duplicate detection (also on import) with Duplicate filter and "Not a duplicate". Members export follows the current search and filter. Card in the logo blue with technical training. Privacy notice 2026-11-13. |

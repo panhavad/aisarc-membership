@@ -1,6 +1,6 @@
 {
   "name": "aisarc-membership",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "private": true,
   "type": "module",
   "description": "AISARC membership management web app",

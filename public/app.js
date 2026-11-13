@@ -1,9 +1,9 @@
 import {
   FIELDS, SECTIONS, STATUSES, STATUS_MAP, ROLES, REJECT_REASONS, ASSOC_FIELDS, DECLARATION, CONSENT_YES, canEdit,
   SUBMIT_REQUIRED, missingForReview,
-} from '/fields.js';
-import { startTour, maybeAutoTour, tourKind } from '/tour.js';
-import { PRIVACY, PRIVACY_VERSION } from '/privacy.js';
+} from './fields.js';
+import { startTour, maybeAutoTour, tourKind } from './tour.js';
+import { PRIVACY, PRIVACY_VERSION } from './privacy.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const app = $('#app');

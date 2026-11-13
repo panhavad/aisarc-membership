@@ -1201,13 +1201,28 @@ registerEvents(app, { storeDataUrl, removeUpload, UserError, sheet, fileLinkCell
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
 // ---------- static SPA ----------
-// Images cache for a day (URLs are versioned); HTML/JS/CSS revalidate (ETag) so deploys show up immediately.
+// Proxies such as Cloudflare may override our Cache-Control and keep JS/CSS in browsers for hours.
+// So the page loads them from /v/<build>/…, where <build> is a hash of the front-end files: every deploy
+// that changes them gets new URLs (cached forever), and index.html itself is never cached.
+const BUILD = (() => {
+  const h = crypto.createHash('sha256');
+  for (const f of fs.readdirSync(PUBLIC).filter((n) => /\.(js|css|json)$/.test(n)).sort()) h.update(f).update(fs.readFileSync(path.join(PUBLIC, f)));
+  return h.digest('hex').slice(0, 12);
+})();
+const INDEX_HTML = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8').replaceAll('%BUILD%', BUILD);
+const sendIndex = (req, res) => res.set({ 'Cache-Control': 'no-cache', 'Content-Type': 'text/html; charset=utf-8' }).send(INDEX_HTML);
+const versioned = express.static(PUBLIC, { index: false, dotfiles: 'deny', setHeaders: (res) => res.set('Cache-Control', 'public, max-age=31536000, immutable') });
+// An old build id (page opened before a deploy) is sent to the current files.
+app.use('/v/:build', (req, res, next) => (req.params.build === BUILD ? versioned(req, res, next)
+  : res.set('Cache-Control', 'no-store').redirect(302, `/v/${BUILD}${req.path}`)));
+app.get(['/', '/index.html'], sendIndex);
+// Images cache for a day (URLs are versioned); other files revalidate (ETag).
 app.use(express.static(PUBLIC, {
   index: false,
   dotfiles: 'deny',
   setHeaders: (res, file) => res.set('Cache-Control', /\.(png|jpe?g|webp|svg|woff2)$/.test(file) ? 'public, max-age=86400' : 'no-cache'),
 }));
-app.get(/.*/, (req, res) => res.set('Cache-Control', 'no-cache').sendFile(path.join(PUBLIC, 'index.html')));
+app.get(/.*/, sendIndex);
 
 // Never send internal error details or stack traces to clients.
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars

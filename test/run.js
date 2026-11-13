@@ -180,6 +180,20 @@ try {
   await t('P-04', 'Bootstrap admin from .env is forced to change its password', async () => {
     eq(ADMIN.password, `${BOOT_PW}x`, 'password had to be changed at first sign-in');
   });
+  await t('P-05', 'Deploys show up at once: JS/CSS load from a build-specific URL; the page itself is never cached', async () => {
+    const c = client(B);
+    const page = await c.get('/');
+    eq(page.headers.get('cache-control'), 'no-cache', 'page not cached');
+    const build = /\/v\/([0-9a-f]{12})\/app\.js/.exec(page.text)?.[1];
+    assert(build && !page.text.includes('%BUILD%'), 'page points at /v/<build>/app.js');
+    const js = await c.get(`/v/${build}/app.js`);
+    eq(js.status, 200, 'app.js'); assert(/immutable/.test(js.headers.get('cache-control')), 'versioned files cached forever');
+    assert(js.text.includes("from './fields.js'"), 'modules load relative to the build folder');
+    eq((await c.get(`/v/${build}/styles.css`)).status, 200, 'styles.css');
+    const old = await c.get('/v/000000000000/app.js');
+    eq(old.status, 302, 'old build redirects'); eq(old.headers.get('location'), `/v/${build}/app.js`, 'to the current build');
+    assert(!/SESSION_SECRET|ADMIN_PASSWORD|GIT_TOKEN/.test((await c.get(`/v/${build}/.env`)).text), 'no secrets under the build folder');
+  });
 
   // ------------------------------------------------------------ registration & profile
   section('Registration & profile');
