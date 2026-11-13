@@ -515,3 +515,41 @@ h3.sub + .field, h3.sub + .check { margin-top: 0; }
 #account .kv { margin-bottom: 4px; }/* the icon wrapper inside a "value + unit" field must not look like the unit box */
 .unit > span.ctl { display: block; padding: 0; border: 0; border-radius: 0; background: none; color: inherit; font-weight: inherit; }
 #account .actions .btn { flex: 1 1 auto; }.hint:empty { display: none; }
+
+/* ---------- compact fields (v1.9.4): smaller inputs, tighter spacing ---------- */
+input, select, textarea { padding: 8px 12px; border-radius: 10px; line-height: 1.35; }
+select { padding-right: 30px; }
+textarea { min-height: 58px; }
+.ctl > input, .ctl > select, .ctl > textarea { padding-left: 38px; }
+.ctl > .ic { left: 12px; width: 16px; height: 16px; }
+.ctl.ta > .ic { top: 11px; }
+.field { margin-bottom: 12px; }
+.field:last-child { margin-bottom: 12px; }
+.field .lbl { font-size: 12.5px; margin-bottom: 4px; line-height: 1.3; }
+.field .lbl small { font-size: 11px; margin-top: 1px; line-height: 1.3; }
+.grid2 { gap: 0 12px; }
+.card { padding: 16px; }
+.card h2 { margin-bottom: 12px; }
+.unit span { padding: 0 12px; border-radius: 0 10px 10px 0; font-size: 14px; }
+.search input { height: 44px; border-radius: 12px; padding-left: 40px; }
+.search svg { left: 12px; width: 18px; }
+.check { margin-bottom: 12px; }
+.check input { width: 18px; height: 18px; }
+.upload .thumb { width: 56px; height: 56px; }
+.urow select, .pg-size select, .audit-tools select { padding-top: 6px; padding-bottom: 6px; }
+.lvl-row input[name=kh], .lvl-row input[name=en] { padding: 6px 10px; }
+.lvl-color input[type=color] { height: 32px; }
+.field small.was { margin-top: 4px; }
+/* on larger screens there is no iPhone zoom issue, so the text can be a little smaller too */
+@media (min-width: 720px) {
+  input, select, textarea { font-size: 15px; padding-top: 7px; padding-bottom: 7px; }
+}input, select, textarea { padding-top: 6px; padding-bottom: 6px; line-height: 1.25; }
+@media (min-width: 720px) { input, select, textarea { padding-top: 6px; padding-bottom: 6px; } }
+.field { margin-bottom: 10px; }
+.field:last-child { margin-bottom: 10px; }
+/* Khmer label and English label on one line */
+.field .lbl { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; margin-bottom: 3px; }
+.field .lbl small { display: inline; margin: 0; }
+.field .lbl small::before { content: '·'; margin-right: 6px; color: #cbd5e1; }
+.field .lbl .req, .field .lbl .lock { order: 0; }.field .lbl { display: block; }
+.field .lbl small::before { margin: 0 5px 0 4px; }
