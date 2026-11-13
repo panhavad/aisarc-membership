@@ -1099,7 +1099,7 @@ function changeRequestHtml(r, withMember = false) {
   const sec = SECTIONS.find((s) => s.id === r.section);
   return `<div class="creq" data-req="${r.id}">
     <div class="a1"><b>${withMember ? `<a href="#/admin/m/${r.member_id}">${esc(r.member_no || '')} · ${esc(r.name_kh || '')} · ${esc(r.name_en || '')}</a><br>` : ''}
-      ${esc(sec?.kh || r.section)} · ${esc(sec?.en || '')}</b><span>${esc(fmtDateTime(r.created_at))}</span></div>
+      ${esc(sec?.en || r.section)} · ${esc(sec?.kh || '')}</b><span>${esc(fmtDateTime(r.created_at))}</span></div>
     ${changeList(r)}
     ${r.note ? `<p class="pre note">“${esc(r.note)}”</p>` : ''}
     ${r.status === 'pending'
@@ -1287,12 +1287,12 @@ async function loadSettingsForm(el) {
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const levelRow = (l) => `<div class="lvl-row" data-key="${esc(l.key || '')}">
       <span class="lvl-dot" style="--lvl:${safeColor(l.color) || '#2a74c9'}"></span>
-      <input name="kh" value="${esc(l.kh || '')}" placeholder="ខ្មែរ" aria-label="Khmer name" required>
       <input name="en" value="${esc(l.en || '')}" placeholder="English" aria-label="English name" required>
+      <input name="kh" value="${esc(l.kh || '')}" placeholder="ខ្មែរ" aria-label="Khmer name" required>
       <label class="lvl-color" title="Card colour"><input type="checkbox" name="custom" ${l.color ? 'checked' : ''}> <input type="color" name="color" value="${safeColor(l.color) || '#2a74c9'}" ${l.color ? '' : 'disabled'}></label>
       ${l.key === 'member' ? '<span class="lvl-fixed" title="Default level">default</span>' : `<button type="button" class="icon-btn" data-rm title="Remove level">${ic('x')}</button>`}
     </div>`;
-  form.innerHTML = `<h2>ការកំណត់ <small>Settings</small></h2>
+  form.innerHTML = `<h2>Settings <small>ការកំណត់</small></h2>
     <h3 class="sub">${ic('edit')} Profile editing · ការកែប្រែព័ត៌មាន</h3>
     <label class="field"><span class="lbl">Members can edit their information for<small>Days after approval. After that the profile is locked (display only) and members send a change request per section for an admin to approve. Leave empty for no limit.</small></span>
       <div class="unit" style="max-width:260px"><input name="edit_days" inputmode="numeric" pattern="\\d*" value="${esc(s.edit_days ?? '')}" placeholder="no limit"><span>days · ថ្ងៃ</span></div></label>
@@ -1331,7 +1331,7 @@ async function loadSettingsForm(el) {
     }
     if (e.target.id === 'addlvl') {
       $('#lvls').insertAdjacentHTML('beforeend', levelRow({ key: '', kh: '', en: '', color: '#0f766e' }));
-      $('#lvls').lastElementChild.querySelector('[name=kh]').focus();
+      $('#lvls').lastElementChild.querySelector('[name=en]').focus();
     }
   });
   form.addEventListener('submit', async (e) => {
@@ -1366,13 +1366,13 @@ const AUDIT_RANGES = [
 
 async function viewSystem() {
   app.className = '';
-  app.innerHTML = `${header('Admin', 'គ្រប់គ្រងប្រព័ន្ធ · System')}
-    <section class="card"><h2>អ្នកប្រើប្រព័ន្ធ <small>System users</small></h2>
+  app.innerHTML = `${header('Admin', 'System · គ្រប់គ្រងប្រព័ន្ធ')}
+    <section class="card"><h2>System users <small>អ្នកប្រើប្រព័ន្ធ</small></h2>
       <p class="hint" style="text-align:left;margin-top:0">Admins have full access. Moderators can review members and manage events.</p>
       <div id="users">${skeleton('lines', 3)}</div>
     </section>
     <form class="card" id="nu" autocomplete="off">
-      <h2>បន្ថែមអ្នកប្រើ <small>Add system user</small></h2>
+      <h2>Add system user <small>បន្ថែមអ្នកប្រើ</small></h2>
       <div class="grid2">
         <label class="field"><span class="lbl">Username</span><input name="username" required autocapitalize="none"></label>
         <label class="field"><span class="lbl">Role</span><select name="role"><option value="moderator">Moderator</option><option value="admin">Admin</option></select></label>
@@ -1382,10 +1382,10 @@ async function viewSystem() {
       <button class="btn block" type="submit">Create user</button>
       <p class="hint" style="text-align:left">To give a <b>member</b> moderator/admin rights, open them in Members › Account › Role.</p>
     </form>
-    <section class="card" id="privreq"><h2>សំណើឯកជនភាព <small>Privacy requests</small></h2><div id="reqbody">${skeleton('lines', 1)}</div></section>
-    <section class="card" id="chgreq"><h2>សំណើកែប្រែព័ត៌មាន <small>Change requests from members</small></h2><div id="chgbody">${skeleton('lines', 2)}</div></section>
-    <form class="card" id="settings" autocomplete="off"><h2>ការកំណត់ <small>Settings</small></h2>${skeleton('lines', 4)}</form>
-    <section class="card"><h2>បម្រុងទុក និង ស្ដារ <small>Backup &amp; restore</small></h2>
+    <section class="card" id="privreq"><h2>Privacy requests <small>សំណើឯកជនភាព</small></h2><div id="reqbody">${skeleton('lines', 1)}</div></section>
+    <section class="card" id="chgreq"><h2>Change requests from members <small>សំណើកែប្រែព័ត៌មាន</small></h2><div id="chgbody">${skeleton('lines', 2)}</div></section>
+    <form class="card" id="settings" autocomplete="off"><h2>Settings <small>ការកំណត់</small></h2>${skeleton('lines', 4)}</form>
+    <section class="card"><h2>Backup &amp; restore <small>បម្រុងទុក និង ស្ដារ</small></h2>
       <p style="font-size:14px;margin-top:0">The backup contains the whole database (members, logins, events, association info) and all uploaded photos/files.
         It contains personal data – <b>set a passphrase</b> so the file is encrypted, and store it safely.</p>
       <label class="field"><span class="lbl">Passphrase (recommended)<small>At least 10 characters. Without it the backup cannot be restored – keep it safe.</small></span>
@@ -1397,7 +1397,7 @@ async function viewSystem() {
         <div class="actions"><input type="file" id="rfile" accept=".gz,.json,.aisarc-enc,application/gzip,application/octet-stream" style="flex:1;min-width:200px"><button class="btn danger" id="restore" disabled>Restore</button></div>
       </details>
     </section>
-    <section class="card" id="auditcard"><h2>កំណត់ត្រាសកម្មភាព <small>Audit log – who did what with personal data</small></h2>
+    <section class="card" id="auditcard"><h2>Audit log <small>Who did what with personal data · កំណត់ត្រាសកម្មភាព</small></h2>
       <div class="audit-tools">
         <div class="search">${ICON.search}<input id="aq" type="search" placeholder="Search action, user, member:12…" autocomplete="off"></div>
         <select id="arange" aria-label="Time range">${AUDIT_RANGES.map((r) => `<option value="${r.h}" ${r.h === 1 ? 'selected' : ''}>${esc(r.label)}</option>`).join('')}</select>

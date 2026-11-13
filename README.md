@@ -1,6 +1,6 @@
 # AISARC Membership Portal · ប្រព័ន្ធគ្រប់គ្រងសមាជិក
 
-**Version 1.9.2** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
+**Version 1.9.3** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
 (សមាគម គិលានុបដ្ឋាកឯកទេសដាក់ថ្នាំសណ្តំ និង ប្រពោធនកម្មកម្ពុជា).
 
 <p>
@@ -529,7 +529,8 @@ The version is set in `package.json` (`npm version minor`) and shown on the logi
 
 | Version | Changes |
 | --- | --- |
-| **1.9.2** | One place for an admin's own account: the separate "My account" page is removed for admins; their **(you)** row in Admin › System users changes their own password (key), sets their sign-in email (envelope, stays signed in on this device) and switches account. Moderators without a member profile keep the Account tab. |
+| **1.9.3** | Admin tab and Settings show English first (headings, level names, change-request sections), Khmer second. |
+| 1.9.2 | One place for an admin's own account: the separate "My account" page is removed for admins; their **(you)** row in Admin › System users changes their own password (key), sets their sign-in email (envelope, stays signed in on this device) and switches account. Moderators without a member profile keep the Account tab. |
 | 1.9.1 | Updates show up immediately after every deploy: JavaScript and CSS load from a build-specific URL (`/v/<build>/…`), so browsers and Cloudflare can no longer serve an old copy for hours. |
 | 1.9.0 | Every input field has a leading icon; consistent spacing for fields, labels and buttons; system-user rows no longer overflow on phones. Change password moved from the header to **My account** (Profile, or the new **Account** tab for staff without a member profile). Admin / moderator accounts can have a **sign-in email**; when one email opens several accounts (member + admin / moderator) the person **chooses the account** after signing in (single-use, 5-minute, HttpOnly choice) and can **switch account** later. Place of birth and current address are a choice of the 25 provinces; existing free text is mapped automatically and the original wording kept for admins. |
 | 1.8.2 | Faster admin screens: the members list is paged on the server (10 by default, 20 / 50 selectable, remembered per device) with chip counts from the server; export offers **current page** or **all matching**; the audit log shows the last hour by default, loads only when scrolled into view, and offers longer periods / older entries on demand; record history loads 30 entries at a time; skeleton placeholders replace every loading spinner. |
