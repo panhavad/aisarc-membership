@@ -93,8 +93,36 @@ function decorateFields(root = document) {
 }
 // Runs right after every render (pages, dialogs), before the browser paints; only when form fields were added.
 const hasFields = (n) => n.nodeType === 1 && (n.matches('input, select, textarea, .field') || n.querySelector('.field, .unit'));
+
+// Bilingual text "English · ខ្មែរ" (or "ខ្មែរ · English"): the part after the dot is kept in one piece, so when the
+// line is too short it moves to its own line instead of being cut in the middle of a word.
+const KH = /[\u1780-\u17FF]/;
+const BI_SKIP = 'script, style, textarea, select, option, input, button, .btn, .mrow, .chip, .flag, .pass, #tabbar, .filters, .pg-nav, .ecard, .prow, .sk-wrap, .bi, .n1, .unit, svg';
+function decorateBilingual(root) {
+  if (!root) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (n.data.includes(' · ') && KH.test(n.data) && /[A-Za-z]/.test(n.data) && !n.parentElement?.closest(BI_SKIP)) nodes.push(n);
+  }
+  for (const n of nodes) {
+    const frag = document.createDocumentFragment();
+    n.data.split(' · ').forEach((part, i) => {
+      if (i === 0) return frag.append(part);
+      frag.append('\u00a0· '); // the dot stays at the end of the first line
+      const [, text, space] = /^([\s\S]*?)(\s*)$/.exec(part);
+      const span = document.createElement('span');
+      span.className = 'bi';
+      span.textContent = text;
+      frag.append(span);
+      if (space) frag.append(space);
+    });
+    n.replaceWith(frag);
+  }
+}
 new MutationObserver((list) => {
   if (list.some((m) => [...m.addedNodes].some(hasFields))) decorateFields();
+  for (const m of list) for (const n of m.addedNodes) decorateBilingual(n.nodeType === 3 ? n.parentElement : n.nodeType === 1 ? n : null);
 }).observe(document.body, { childList: true, subtree: true });
 
 // ---------- helpers ----------

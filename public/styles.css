@@ -553,3 +553,8 @@ textarea { min-height: 58px; }
 .field .lbl small::before { content: '·'; margin-right: 6px; color: #cbd5e1; }
 .field .lbl .req, .field .lbl .lock { order: 0; }.field .lbl { display: block; }
 .field .lbl small::before { margin: 0 5px 0 4px; }
+/* bilingual text: the second language stays in one piece (moves to its own line instead of being cut) */
+.bi { display: inline-block; max-width: 100%; }
+/* field labels: Khmer and English on one line when they fit, otherwise English on its own line */
+.field .lbl { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; }
+.field .lbl small::before { content: none; }
