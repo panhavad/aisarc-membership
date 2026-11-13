@@ -1,6 +1,6 @@
 # AISARC Membership Portal · ប្រព័ន្ធគ្រប់គ្រងសមាជិក
 
-**Version 1.9.1** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
+**Version 1.9.2** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
 (សមាគម គិលានុបដ្ឋាកឯកទេសដាក់ថ្នាំសណ្តំ និង ប្រពោធនកម្មកម្ពុជា).
 
 <p>
@@ -116,8 +116,10 @@
 | <img src="docs/screenshots/31-members-pager.png" width="230"> | <img src="docs/screenshots/32-export-dialog.png" width="230"> | <img src="docs/screenshots/33-audit-log.png" width="230"> |
 | **Loading placeholders (no spinner)** | **Choose an account (same email)** | **My account (password, switch)** |
 | <img src="docs/screenshots/30-skeleton-loading.png" width="230"> | <img src="docs/screenshots/34-account-chooser.png" width="230"> | <img src="docs/screenshots/35-account-card.png" width="230"> |
-| **Field icons + province list** | **System users with sign-in email** | **Staff "Account" tab** |
+| **Field icons + province list** | **System users with sign-in email** | **Moderator "Account" tab** |
 | <img src="docs/screenshots/37-province-fields.png" width="230"> | <img src="docs/screenshots/36-system-users-email.png" width="230"> | <img src="docs/screenshots/39-admin-account-tab.png" width="230"> |
+| **Admin – own account = the "(you)" row** | | |
+| <img src="docs/screenshots/40-admin-own-row.png" width="230"> | | |
 
 **Desktop – admin members (Duplicate / Change requests / level filters, export follows the filter)**
 
@@ -352,7 +354,7 @@ sequenceDiagram
 | --- | --- |
 | Add a system user | **Add system user** → username, role (moderator / admin), temporary password, optional **sign-in email** → **Create user**. |
 | Sign-in email | Envelope button next to a system user → enter or remove the email. They can then sign in with that email (password or Google) as well as the username. If a member uses the same email, the person chooses which account to open at sign-in. |
-| Your own password | **Account** tab (admins / moderators without a member profile) › **Change password**. |
+| Your own password / email | Admins: Admin tab › System users › your **(you)** row: key = change your password, envelope = your sign-in email, and a switch button when your email opens another account. Moderators without a member profile: **Account** tab. Members (also staff members): **Profile › My account**. |
 | Change role / remove | In **System users**, change the role, or tap the **close (X)** icon (member accounts are only demoted to member). |
 | Reset a staff password | Key icon next to the user. |
 | Backup | Enter a **passphrase** (recommended) → **Download backup**. Keep the file and the passphrase separately and safely. |
@@ -527,7 +529,8 @@ The version is set in `package.json` (`npm version minor`) and shown on the logi
 
 | Version | Changes |
 | --- | --- |
-| **1.9.1** | Updates show up immediately after every deploy: JavaScript and CSS load from a build-specific URL (`/v/<build>/…`), so browsers and Cloudflare can no longer serve an old copy for hours. |
+| **1.9.2** | One place for an admin's own account: the separate "My account" page is removed for admins; their **(you)** row in Admin › System users changes their own password (key), sets their sign-in email (envelope, stays signed in on this device) and switches account. Moderators without a member profile keep the Account tab. |
+| 1.9.1 | Updates show up immediately after every deploy: JavaScript and CSS load from a build-specific URL (`/v/<build>/…`), so browsers and Cloudflare can no longer serve an old copy for hours. |
 | 1.9.0 | Every input field has a leading icon; consistent spacing for fields, labels and buttons; system-user rows no longer overflow on phones. Change password moved from the header to **My account** (Profile, or the new **Account** tab for staff without a member profile). Admin / moderator accounts can have a **sign-in email**; when one email opens several accounts (member + admin / moderator) the person **chooses the account** after signing in (single-use, 5-minute, HttpOnly choice) and can **switch account** later. Place of birth and current address are a choice of the 25 provinces; existing free text is mapped automatically and the original wording kept for admins. |
 | 1.8.2 | Faster admin screens: the members list is paged on the server (10 by default, 20 / 50 selectable, remembered per device) with chip counts from the server; export offers **current page** or **all matching**; the audit log shows the last hour by default, loads only when scrolled into view, and offers longer periods / older entries on demand; record history loads 30 entries at a time; skeleton placeholders replace every loading spinner. |
 | 1.8.1 | No emoji anywhere: every symbol in the interface is replaced by a consistent SVG line icon (check, close, edit, alert, lock, file, download, upload, payment, workplace, training…); the test report uses plain Pass / Fail; automated check C-05 keeps emoji out of the UI and documentation. |

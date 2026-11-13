@@ -1053,8 +1053,9 @@ app.put('/api/users/:id', requireAdmin, (req, res) => {
     let email;
     try { email = cleanStaffEmail(b.email, u.id); } catch (e) { return res.status(400).json({ error: e.message }); }
     if ((email || null) !== (u.email || null)) {
-      // A changed sign-in email ends that account's sessions.
+      // A changed sign-in email ends that account's sessions (on this device the admin stays signed in).
       db.prepare('UPDATE users SET email = ?, token_version = token_version + 1 WHERE id = ?').run(email, u.id);
+      if (u.id === req.user.id) setSession(res, u);
       audit(req, 'user.email', `user:${u.id}`, { set: email ? 'yes' : 'removed' });
     }
   }

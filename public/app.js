@@ -231,8 +231,9 @@ function setTabs(active) {
   tabs.push(['/events', 'Events', ICON.cal], ['/association', 'Association', ICON.org]);
   if (isStaff()) tabs.push(['/admin', isAdmin() ? 'Members' : 'Review', ICON.users]);
   if (isAdmin()) tabs.push(['/system', 'Admin', ICON.shield]);
-  // Staff accounts without a member profile get their own "Account" tab (password, sign-in email).
-  if (!u.member_id) tabs.push(['/account', 'Account', ICON.user]);
+  // Staff accounts without a member profile and without the Admin tab (moderators) get an "Account" tab;
+  // admins manage their own password and sign-in email in Admin › System users (their "(you)" row).
+  if (!u.member_id && !isAdmin()) tabs.push(['/account', 'Account', ICON.user]);
   tabbar.innerHTML = tabs.map(([href, label, icon]) =>
     `<a href="#${href}" class="${active === href ? 'on' : ''}">${icon}<span>${label}</span></a>`).join('');
   tabbar.hidden = false;
@@ -738,7 +739,7 @@ function bindMyData(rerender) {
 
 // ---------- password ----------
 // "My account" card: who is signed in, how, and the password / switch / sign-out buttons.
-const accountHome = () => (state.user?.member_id ? '/profile' : '/account');
+const accountHome = () => (state.user?.member_id ? '/profile' : isAdmin() ? '/system' : '/account');
 function accountCard() {
   const u = state.user;
   const [kh, en] = ROLE_TEXT[u.role] || [u.role, u.role];
@@ -1489,7 +1490,7 @@ async function viewSystem() {
     try {
       const users = await api('/api/users');
       $('#users').innerHTML = `<div class="ulist">${users.map((u) => `
-        <div class="urow" data-id="${u.id}" data-email="${esc(u.email || '')}">
+        <div class="urow${u.id === state.user.id ? ' me' : ''}" data-id="${u.id}" data-email="${esc(u.email || '')}">
           <div class="info"><div class="n1">${esc(u.username)}${u.id === state.user.id ? ' <small>(you)</small>' : ''}</div>
             <div class="n2">${u.member_no ? `Member ${esc(u.member_no)} · ${esc(u.name || '')}` : 'System account'}</div>
             ${u.email ? `<div class="n2">${ic('mail')}${esc(u.email)}${u.shared_with_member ? ' · <span class="flag chg">also a member login</span>' : ''}</div>` : ''}</div>
@@ -1498,7 +1499,10 @@ async function viewSystem() {
               ${(u.member_id ? ['member', 'moderator', 'admin'] : ['moderator', 'admin']).map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}
             </select>
             ${u.member_id ? '' : `<button class="icon-btn" data-email title="Sign-in email" aria-label="Sign-in email">${ic('mail')}</button>`}
-            <button class="icon-btn" data-reset title="Reset password" aria-label="Reset password">${ICON.key}</button>
+            ${u.id === state.user.id
+              ? `<a class="icon-btn" href="#/password" title="Change my password" aria-label="Change my password">${ICON.key}</a>
+                 ${state.user.other_accounts ? `<button class="icon-btn" data-switch title="Switch account (this email opens another account)" aria-label="Switch account">${ICON.users}</button>` : ''}`
+              : `<button class="icon-btn" data-reset title="Reset password" aria-label="Reset password">${ICON.key}</button>`}
             ${u.id === state.user.id ? '' : `<button class="icon-btn" data-del title="${u.member_id ? 'Remove staff role' : 'Delete user'}" aria-label="Remove">${ic('x')}</button>`}
           </div>
         </div>`).join('')}</div>`;
@@ -1529,6 +1533,7 @@ async function viewSystem() {
           const r = await api(`/api/users/${row.dataset.id}`, { method: 'PUT', body: { email } });
           d.close();
           toast(r.shared_with_member ? 'Saved – this email also opens a member account; the person will choose at sign-in' : 'Sign-in email saved');
+          if (r.id === state.user.id) state.user = (await api('/api/me')).user; // own email: refresh "switch account"
           loadUsers();
         } catch (err) { toast(err.message, true); }
       };
@@ -1992,7 +1997,7 @@ async function route() {
   if (path === '/pass' && state.member) { setTabs('/pass'); return viewPass(); }
   if (path === '/profile' && state.member) { setTabs('/profile'); return viewProfile(); }
   if (path === '/password') { setTabs(''); return viewPassword(); }
-  if (path === '/account') { if (state.member) return go('/profile'); setTabs('/account'); return viewAccount(); }
+  if (path === '/account') { if (state.member || isAdmin()) return go(accountHome()); setTabs('/account'); return viewAccount(); }
   // Already signed in (e.g. Google redirect while a session exists): still allow picking another account.
   if (path === '/choose') return viewChoose();
   if (path === '/events') { setTabs('/events'); return viewEvents(); }

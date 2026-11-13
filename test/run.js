@@ -357,6 +357,11 @@ try {
     eq((await A.put(`/api/users/${u.id}`, { email: '' })).json.email, null, 'email removed');
     eq((await c.get('/api/me')).status, 401, 'changing the sign-in email ends that account\u2019s sessions');
     eq((await client(B).post('/api/login', { username: 'mod.mail@example.com', password: 'TempMod-2026!' })).status, 401, 'old email no longer works');
+    const me = (await A.get('/api/me')).json.user;
+    eq((await A.put(`/api/users/${me.id}`, { email: 'admin.self@example.com' })).json.email, 'admin.self@example.com', 'admin sets own email');
+    eq((await A.get('/api/users')).status, 200, 'admin stays signed in after changing own email');
+    eq((await A.post(`/api/users/${me.id}/password`)).status, 400, 'own password is changed on the password page, not reset');
+    await A.put(`/api/users/${me.id}`, { email: '' });
   });
   await t('A-09', 'One email, two accounts (member + admin): after signing in the person chooses the account', async () => {
     const mem = await activeMember(B, A);
