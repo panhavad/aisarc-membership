@@ -23,7 +23,7 @@ const STEPS = {
     { el: '#tabbar a[href="#/profile"]', ...T('មើល និង កែប្រែព័ត៌មានផ្ទាល់ខ្លួនរបស់អ្នក។ ក្រោយរយៈពេលកែប្រែបានបញ្ចប់ ព័ត៌មានត្រូវចាក់សោ – ចុច «ស្នើកែប្រែ» លើផ្នែកនីមួយៗ ដើម្បីផ្ញើទៅអ្នកគ្រប់គ្រងពិនិត្យ។', 'View and edit your personal information. After the edit period it is locked – tap "Request change" on a section to send changes to an admin for review.', 'ព័ត៌មានផ្ទាល់ខ្លួន', 'Profile') },
     { el: '#tabbar a[href="#/events"]', ...T('មើលព្រឹត្តិការណ៍ និង ចុះឈ្មោះចូលរួម មុនថ្ងៃបិទការចុះឈ្មោះ។ សម្រាប់ព្រឹត្តិការណ៍បង់ប្រាក់ សូមបញ្ចូលរូបវិក្កយបត្រក្រោយពេលបង់ប្រាក់។', 'See events and join before registration closes. For paid events, upload a photo of your payment receipt after paying.', 'ព្រឹត្តិការណ៍', 'Events') },
     { el: '#tabbar a[href="#/association"]', ...T('ព័ត៌មានសមាគម និង គណនីធនាគារសម្រាប់បង់ថ្លៃសមាជិកភាព។', 'Association info and the bank account for the membership fee.', 'សមាគម', 'Association') },
-    { el: '.top a[href="#/password"]', ...T('ប្ដូរពាក្យសម្ងាត់របស់អ្នកនៅទីនេះ។', 'Change your password here.', 'ពាក្យសម្ងាត់', 'Password') },
+    { route: '/profile', el: '#account', ...T('ប្ដូរពាក្យសម្ងាត់ និង ចាកចេញ នៅក្នុង «គណនីរបស់ខ្ញុំ» ខាងក្រោមព័ត៌មានរបស់អ្នក។', 'Change your password or sign out in "My account", below your information.', 'ពាក្យសម្ងាត់', 'Password') },
     { el: '[data-tour]', ...T('ចុចប៊ូតុង ? នេះ ពេលណាក៏បាន ដើម្បីមើលការណែនាំម្ដងទៀត។', 'Tap this ? button any time to see this tour again.', 'ជំនួយ', 'Help') },
   ],
   moderator: [
@@ -32,6 +32,7 @@ const STEPS = {
     { route: '/admin', el: '.search', ...T('ស្វែងរកតាមឈ្មោះ លេខទូរស័ព្ទ អ៊ីម៉ែល ឬ កន្លែងធ្វើការ។', 'Search by name, phone, email or workplace.', 'ស្វែងរក', 'Search') },
     { route: '/admin', el: '.mrow', optional: true, ...T('ចុចលើសមាជិកម្នាក់ ដើម្បីពិនិត្យព័ត៌មាន រួចចុច «Approve» ឬ «Reject»។ ពេលបដិសេធ ត្រូវជ្រើសមូលហេតុ ដើម្បីឱ្យសមាជិកកែតម្រូវ។', 'Open a member to check their details, then Approve or Reject. When rejecting, choose a reason so they can fix it.', 'ពិនិត្យ', 'Review') },
     { route: '/events', el: 'a[href="#/events/new"]', ...T('បង្កើតព្រឹត្តិការណ៍ថ្មី ដែលសមាជិកអាចចុះឈ្មោះចូលរួម។ បើកព្រឹត្តិការណ៍ ដើម្បីមើលអ្នកចូលរួម និង នាំចេញជា Excel។', 'Create a new event that members can join. Open an event to see who joined and export the list to Excel.', 'ព្រឹត្តិការណ៍', 'Events') },
+    { el: '#tabbar a[href="#/account"]', optional: true, ...T('ប្ដូរពាក្យសម្ងាត់ និង មើលអ៊ីម៉ែលចូលប្រើ នៅក្នុង «គណនី»។', 'Change your password and see your sign-in email in "Account".', 'គណនី', 'Account') },
     { el: '[data-tour]', ...T('ចុចប៊ូតុង ? នេះ ពេលណាក៏បាន ដើម្បីមើលការណែនាំម្ដងទៀត។', 'Tap this ? button any time to see this tour again.', 'ជំនួយ', 'Help') },
   ],
   admin: [
@@ -47,6 +48,7 @@ const STEPS = {
     { route: '/system', el: '#settings', ...T('ការកំណត់៖ ចំនួនថ្ងៃដែលសមាជិកអាចកែប្រែព័ត៌មានក្រោយពេលអនុម័ត ថ្ងៃបន្តសមាជិកភាពប្រចាំឆ្នាំ (PENDING ដោយស្វ័យប្រវត្តិ) អសកម្មដោយស្វ័យប្រវត្តិ និង កម្រិតសមាជិក (ពណ៌កាត)។', 'Settings: how many days members can edit after approval, the yearly renewal date (automatic PENDING), automatic INACTIVE, and member levels (card colours).', 'ការកំណត់', 'Settings') },
     { route: '/system', el: 'a[href="#/association/edit"]', ...T('កែប្រែព័ត៌មានសមាគម ថ្លៃសមាជិកភាព គណនីធនាគារ និង QR។', 'Edit association info, membership fee, bank account and QR.', 'ព័ត៌មានសមាគម', 'Association info') },
     { route: '/events', el: 'a[href="#/events/new"]', ...T('បង្កើតព្រឹត្តិការណ៍ (តម្លៃ ថ្ងៃបិទការចុះឈ្មោះ)។ បើកព្រឹត្តិការណ៍ ដើម្បីមើលអ្នកចូលរួម វិក្កយបត្របង់ប្រាក់ និង នាំចេញជា Excel។', 'Create events (price, registration closing days). Open an event to see who joined, their payment proofs, and export the list to Excel.', 'ព្រឹត្តិការណ៍', 'Events') },
+    { el: '#tabbar a[href="#/account"]', optional: true, ...T('ប្ដូរពាក្យសម្ងាត់ និង មើលអ៊ីម៉ែលចូលប្រើ នៅក្នុង «គណនី»។ អ្នកក៏អាចកំណត់អ៊ីម៉ែលចូលប្រើសម្រាប់អ្នកប្រើប្រព័ន្ធ (រូបសំបុត្រ) ផងដែរ។', 'Change your password and see your sign-in email in "Account". You can give any system user a sign-in email with the envelope button.', 'គណនី', 'Account') },
     { el: '[data-tour]', ...T('ចុចប៊ូតុង ? នេះ ពេលណាក៏បាន ដើម្បីមើលការណែនាំម្ដងទៀត។', 'Tap this ? button any time to see this tour again.', 'ជំនួយ', 'Help') },
   ],
 };

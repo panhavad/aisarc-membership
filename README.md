@@ -1,6 +1,6 @@
 # AISARC Membership Portal · ប្រព័ន្ធគ្រប់គ្រងសមាជិក
 
-**Version 1.8.2** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
+**Version 1.9.0** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
 (សមាគម គិលានុបដ្ឋាកឯកទេសដាក់ថ្នាំសណ្តំ និង ប្រពោធនកម្មកម្ពុជា).
 
 <p>
@@ -39,7 +39,7 @@
 ### For members · សមាជិក
 | Feature | Description |
 | --- | --- |
-| Sign in | Email + password, or **Sign in with Google** (same email as the member record). |
+| Sign in | Email + password, or **Sign in with Google** (same email as the member record). If the email also opens an admin / moderator account, the person **chooses the account** after signing in. |
 | Self-registration | New people register, then complete their profile and **submit it for review**. |
 | Profile completion | Live progress bar, required items marked **\***, missing items highlighted; submitting is blocked until complete. |
 | Digital membership pass | Card in the logo blue with logo, Khmer + English name, **technical training**, membership no., birthday, member since and photo. Members with a **level** (leader, board member, accounting…) get the level's colour and label. |
@@ -54,7 +54,7 @@
 | Privacy | Read the privacy notice, see their consent record, **download all their data**, and **request deletion**. |
 | Association info | Association details, membership fee, bank account (copy button), payment QR and contacts. |
 | Renewal | When the membership expires (PENDING), members pay and tap **Request renewal**. |
-| Password | Change password (key icon); admins can issue a temporary password. |
+| My account | **Profile › My account**: sign-in name, role, **Change password**, **Switch account** (when the email opens several accounts) and **Sign out**. Admins can issue a temporary password. |
 | System tour | Bilingual guided tour on first sign-in; the **?** button replays it any time. |
 
 ### For moderators · អ្នកសម្របសម្រួល
@@ -85,7 +85,8 @@
 
 ### Platform
 - Mobile-first, responsive (phone → desktop), installable as a home-screen app (PWA manifest).
-- Khmer + English throughout; Kantumruy Pro font; consistent SVG line icons (no emoji).
+- Khmer + English throughout; Kantumruy Pro font; consistent SVG line icons (no emoji); every input field has its own icon (name, phone, email, date, province, workplace…).
+- Place of birth and current address are chosen from the **25 provinces of Cambodia** (one selection).
 - Fast and light: lists are paged on the server, the audit log loads only recent entries when it scrolls into view, and skeleton placeholders show the page layout while data loads. No front-end build step or framework (~180 KB of front-end code, uncompressed), Node.js 24 with built-in SQLite.
 - Docker Compose deployment with **auto-update on `git push`**.
 - Version number shown on the login screen and at the bottom of every page.
@@ -113,8 +114,10 @@
 | <img src="docs/screenshots/26-change-requests.png" width="230"> | <img src="docs/screenshots/27-settings.png" width="230"> | <img src="docs/screenshots/25-duplicate-notice.png" width="230"> |
 | **Members – pages (10 / 20 / 50)** | **Export: current page or all** | **Audit log – last hour first** |
 | <img src="docs/screenshots/31-members-pager.png" width="230"> | <img src="docs/screenshots/32-export-dialog.png" width="230"> | <img src="docs/screenshots/33-audit-log.png" width="230"> |
-| **Loading placeholders (no spinner)** | | |
-| <img src="docs/screenshots/30-skeleton-loading.png" width="230"> | | |
+| **Loading placeholders (no spinner)** | **Choose an account (same email)** | **My account (password, switch)** |
+| <img src="docs/screenshots/30-skeleton-loading.png" width="230"> | <img src="docs/screenshots/34-account-chooser.png" width="230"> | <img src="docs/screenshots/35-account-card.png" width="230"> |
+| **Field icons + province list** | **System users with sign-in email** | **Staff "Account" tab** |
+| <img src="docs/screenshots/37-province-fields.png" width="230"> | <img src="docs/screenshots/36-system-users-email.png" width="230"> | <img src="docs/screenshots/39-admin-account-tab.png" width="230"> |
 
 **Desktop – admin members (Duplicate / Change requests / level filters, export follows the filter)**
 
@@ -301,7 +304,7 @@ sequenceDiagram
   - Your consent record: when you agreed to the declaration and the privacy notice.
 
 ### 8. Password and help · ពាក្យសម្ងាត់ និង ជំនួយ
-- **Key icon** (top right): change your password.
+- **Profile › My account › Change password**: change your password. **Switch account** appears when your email also opens an admin / moderator account.
 - **? button**: replay the system tour.
 - **Sign-out icon**: signs you out on every device.
 - Forgot your password? Sign in with Google, or ask the admin for a temporary password (valid 72 hours).
@@ -347,7 +350,9 @@ sequenceDiagram
 ### Admin tab · គ្រប់គ្រងប្រព័ន្ធ
 | Task | How |
 | --- | --- |
-| Add a system user | **Add system user** → username, role (moderator / admin), temporary password → **Create user**. |
+| Add a system user | **Add system user** → username, role (moderator / admin), temporary password, optional **sign-in email** → **Create user**. |
+| Sign-in email | Envelope button next to a system user → enter or remove the email. They can then sign in with that email (password or Google) as well as the username. If a member uses the same email, the person chooses which account to open at sign-in. |
+| Your own password | **Account** tab (admins / moderators without a member profile) › **Change password**. |
 | Change role / remove | In **System users**, change the role, or tap the **close (X)** icon (member accounts are only demoted to member). |
 | Reset a staff password | Key icon next to the user. |
 | Backup | Enter a **passphrase** (recommended) → **Download backup**. Keep the file and the passphrase separately and safely. |
@@ -452,7 +457,8 @@ See [.env.example](.env.example) for examples.
 | First admin | `ADMIN_USERNAME` | `ADMIN_PASSWORD` from `.env`; must be changed at first sign-in |
 | Imported member | their email | none: sign in with Google, or ask an admin for a temporary password |
 | Self-registered member | their email | chosen at registration |
-| Admin / moderator created in the Admin tab | chosen by the admin | temporary password (72 h) |
+| Admin / moderator created in the Admin tab | chosen by the admin (and optionally a sign-in email) | temporary password (72 h) |
+| Same email as a member and as an admin / moderator | the email | Google: always asked which account to open. Password: the account whose password matches opens; if both have the same password, the person chooses. |
 
 ---
 
@@ -520,7 +526,8 @@ The version is set in `package.json` (`npm version minor`) and shown on the logi
 
 | Version | Changes |
 | --- | --- |
-| **1.8.2** | Faster admin screens: the members list is paged on the server (10 by default, 20 / 50 selectable, remembered per device) with chip counts from the server; export offers **current page** or **all matching**; the audit log shows the last hour by default, loads only when scrolled into view, and offers longer periods / older entries on demand; record history loads 30 entries at a time; skeleton placeholders replace every loading spinner. |
+| **1.9.0** | Every input field has a leading icon; consistent spacing for fields, labels and buttons; system-user rows no longer overflow on phones. Change password moved from the header to **My account** (Profile, or the new **Account** tab for staff without a member profile). Admin / moderator accounts can have a **sign-in email**; when one email opens several accounts (member + admin / moderator) the person **chooses the account** after signing in (single-use, 5-minute, HttpOnly choice) and can **switch account** later. Place of birth and current address are a choice of the 25 provinces; existing free text is mapped automatically and the original wording kept for admins. |
+| 1.8.2 | Faster admin screens: the members list is paged on the server (10 by default, 20 / 50 selectable, remembered per device) with chip counts from the server; export offers **current page** or **all matching**; the audit log shows the last hour by default, loads only when scrolled into view, and offers longer periods / older entries on demand; record history loads 30 entries at a time; skeleton placeholders replace every loading spinner. |
 | 1.8.1 | No emoji anywhere: every symbol in the interface is replaced by a consistent SVG line icon (check, close, edit, alert, lock, file, download, upload, payment, workplace, training…); the test report uses plain Pass / Fail; automated check C-05 keeps emoji out of the UI and documentation. |
 | 1.8.0 | Events: price, registration closes N days before the start, member payment-proof upload, joiner list with gender / workplace / technical training / bill, joiner export to Excel. Admin settings: profile edit window with locked profiles and per-section change requests, yearly renewal date (automatic PENDING), automatic INACTIVE after N years PENDING, member levels with card colours. Possible-duplicate detection (also on import) with Duplicate filter and "Not a duplicate". Members export follows the current search and filter. Card in the logo blue with technical training. Privacy notice 2026-11-13. |
 | 1.7.0 | Personal-data protection: bilingual privacy notice (required at registration, re-accept on change), consent records, download-my-data, deletion requests, audit log and record history, event participant privacy, self-hosted fonts, encrypted backups, automatic retention (12-month drafts, 2-year audit, 90-day server backups), automated test suite and test report, data-protection document. |

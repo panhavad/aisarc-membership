@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
-import { FIELDS } from '../public/fields.js';
+import { FIELDS, PROVINCE_FIELDS, PROVINCE_OPTIONS } from '../public/fields.js';
+import { provinceOf } from '../public/provinces.js';
 import { db, findMemberByEmail, saveMember, toNumberText, duplicateMap } from './db.js';
 
 const clean = (v) => String(v ?? '').replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
@@ -41,6 +42,12 @@ export function importWorkbook(buffer, { overwrite = false } = {}) {
         rec[f.key] = v;
       }
       rec.joined_at = parseTimestamp(row[0]) || new Date().toISOString();
+      // Place of birth / address: keep the province; the original wording goes to legacy_text.
+      for (const k of PROVINCE_FIELDS) {
+        if (!rec[k] || PROVINCE_OPTIONS.includes(rec[k])) continue;
+        rec.legacy_text = { ...(rec.legacy_text || {}), [k]: rec[k] };
+        rec[k] = provinceOf(rec[k]) || '';
+      }
       // Consent was given in the Google Form declaration at submission time.
       if (rec.consent) { rec.consent_at = rec.joined_at; rec.consent_version = 'google-form'; }
       const existing = rec.email ? findMemberByEmail(rec.email) : null;

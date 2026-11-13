@@ -462,3 +462,56 @@ ul.chg .ic { width: 14px; height: 14px; color: var(--muted); vertical-align: -2p
 .audit-tools .search { flex: 1; margin: 0; }
 .audit-tools select { width: auto; flex: none; }
 @media (max-width: 480px) { .audit-tools { flex-direction: column; } .audit-tools select { width: 100%; } }
+/* ---------- field icons: every input / select / textarea has a leading icon ---------- */
+.ctl { position: relative; display: block; flex: 1; min-width: 0; }
+.ctl > .ic { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: #94a3b8; pointer-events: none; z-index: 1; vertical-align: 0; }
+.ctl.ta > .ic { top: 13px; transform: none; }
+.ctl > input, .ctl > select, .ctl > textarea { padding-left: 44px; }
+.ctl:focus-within > .ic { color: var(--blue-2); }
+.unit > .ctl > input { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.field small.was { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+
+/* ---------- spacing: one rhythm for fields and buttons ---------- */
+.card { padding: 18px; }
+.card h2 { margin-bottom: 14px; }
+.card > :last-child { margin-bottom: 0; }
+.field { margin: 0 0 16px; }
+.field:last-child { margin-bottom: 16px; } /* grid items keep their spacing; card ends are handled below */
+.card > .field:last-child, dialog .field:last-child, .card > .grid2:last-child { margin-bottom: 0; }
+.card > .grid2:last-child > .field:last-child { margin-bottom: 0; }
+@media (min-width: 720px) { .card > .grid2:last-child > .field:nth-last-child(2):nth-child(odd) { margin-bottom: 0; } }
+.grid2 { gap: 0 14px; }
+.field .lbl { margin-bottom: 7px; line-height: 1.35; }
+.field .lbl small { margin-top: 2px; line-height: 1.35; }
+.check { margin-bottom: 16px; }
+.btn.block { display: flex; }
+.btn.block + .btn.block, .btn.block + .actions, .actions + .btn.block { margin-top: 10px; }
+.grid2 + .btn, .field + .btn, .check + .btn { margin-top: 4px; }
+.hint + .actions, p + .actions, .kv + .actions, .kv + .hint { margin-top: 14px; }
+.actions { gap: 10px; }
+.toolbar { gap: 10px; }
+h3.sub + .field, h3.sub + .check { margin-top: 0; }
+
+/* ---------- system users: details on top, tools wrap underneath on small screens ---------- */
+.urow { flex-wrap: wrap; row-gap: 8px; padding: 10px 10px 10px 14px; }
+.urow .info { flex: 1 1 190px; }
+.urow .n2 .ic { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
+.urow .flag { white-space: nowrap; }
+.u-tools { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+
+/* ---------- account chooser ---------- */
+.choose-list { display: grid; gap: 10px; }
+.choose-item {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; cursor: pointer;
+  border: 1.5px solid var(--line); background: #fff; border-radius: 14px; padding: 14px; font: inherit; color: inherit;
+}
+.choose-item:hover, .choose-item:focus-visible { border-color: var(--blue-3); background: #f5f7ff; outline: none; }
+.choose-item:disabled { opacity: .6; }
+.ci-icon { width: 44px; height: 44px; border-radius: 12px; background: #e8ecf7; color: var(--blue); display: grid; place-items: center; flex: none; }
+.ci-icon svg { width: 22px; height: 22px; }
+.ci-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.ci-text small { color: var(--muted); font-size: 13px; }
+.choose-item > svg:last-child { width: 18px; height: 18px; color: var(--muted); flex: none; }
+#account .kv { margin-bottom: 4px; }/* the icon wrapper inside a "value + unit" field must not look like the unit box */
+.unit > span.ctl { display: block; padding: 0; border: 0; border-radius: 0; background: none; color: inherit; font-weight: inherit; }
+#account .actions .btn { flex: 1 1 auto; }.hint:empty { display: none; }

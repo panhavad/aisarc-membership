@@ -44,10 +44,58 @@ const ICON = {
   star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8L12 3.5Z"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>',
   prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
+  globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.5 5.7 3.5 9s-1 6.3-3.5 9c-2.5-2.7-3.5-5.7-3.5-9s1-6.3 3.5-9Z"/></svg>',
+  shirt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 4 5.5 2.5 10l3.5 1.5V21h12v-9.5l3.5-1.5L20 5.5 15 3c-.5 1.5-1.6 2.5-3 2.5S9.5 4.5 9 3Z"/></svg>',
+  briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 12.5h18"/></svg>',
+  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
+  note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+  idcard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2"/><circle cx="8.5" cy="11" r="2"/><path d="M5.5 16c.5-1.3 1.6-2 3-2s2.5.7 3 2M14.5 10h4M14.5 13.5h3"/></svg>',
+  bank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 4l9 5.5M4.5 10v8M9.5 10v8M14.5 10v8M19.5 10v8M3 20.5h18"/></svg>',
+  tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4.5A1.5 1.5 0 0 1 4.5 3H12l9 9-9 9-9-9Z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>',
+  list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>',
+  flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
   next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
 };
 // Inline icon that sits in a line of text (no emoji anywhere in the UI).
 const ic = (name) => ICON[name].replace('<svg ', '<svg class="ic" aria-hidden="true" ');
+
+// Every form field shows a leading icon, chosen by the field's name (or its type), so fields are easy to tell apart.
+const FIELD_ICON = {
+  name_kh: 'user', name_en: 'user', username: 'user', gender: 'user', age_group: 'users', account_name: 'user',
+  email: 'mail', contact_email: 'mail', phone: 'phone', telegram: 'phone',
+  password: 'lock', confirm: 'lock', current: 'lock', bpass: 'lock', rpass: 'lock',
+  dob: 'cal', cnc_reg_date: 'cal', joined_at: 'cal', expires_at: 'cal', starts_at: 'cal', ends_at: 'cal', mm: 'cal', dd: 'cal', term_months: 'cal', edit_days: 'cal', inactive_years: 'cal',
+  birthplace: 'pin', address: 'pin', location: 'pin', map_url: 'link', nationality: 'flag', tshirt: 'shirt',
+  occupation: 'briefcase', employment: 'briefcase', workplace: 'building', department: 'building', experience: 'clock',
+  training: 'cap', highest_degree: 'cap', general_education: 'cap', other_degree: 'cap',
+  cnc_reg_no: 'idcard', member_no: 'idcard', status: 'flag', level: 'star', consent: 'shield', role: 'shield',
+  title: 'cal', seats: 'seat', price: 'cash', fee: 'cash', currency: 'cash', close_days: 'hourglass',
+  bank_name: 'bank', account_no: 'idcard', about: 'note', payment_note: 'note', description: 'note', note: 'note', message: 'note', reason: 'note',
+  name: 'org', 'req-note': 'note', psize: 'list', arange: 'clock',
+};
+const TYPE_ICON = { email: 'mail', tel: 'phone', password: 'lock', date: 'cal', 'datetime-local': 'cal', url: 'link', number: 'tag' };
+const SKIP_TYPES = new Set(['checkbox', 'radio', 'file', 'color', 'hidden', 'submit', 'button']);
+function decorateFields(root = document) {
+  root.querySelectorAll('.field input, .field select, .field textarea, .unit > input').forEach((el) => {
+    if (SKIP_TYPES.has(el.type) || el.closest('.ctl, .search')) return;
+    const key = (el.name || el.id || '').replace(/^f_/, '');
+    const org = el.closest('#asf') && ['name_kh', 'name_en'].includes(key) ? 'org' : '';
+    const icon = el.dataset.icon || org || FIELD_ICON[key] || TYPE_ICON[el.type] || (el.tagName === 'TEXTAREA' ? 'note' : el.tagName === 'SELECT' ? 'list' : 'edit');
+    const wrap = document.createElement('span');
+    wrap.className = `ctl${el.tagName === 'TEXTAREA' ? ' ta' : ''}`;
+    if (icon === 'edit' && !el.dataset.icon) wrap.dataset.fallback = key || '?';
+    el.before(wrap);
+    wrap.insertAdjacentHTML('afterbegin', ic(icon));
+    wrap.append(el);
+  });
+}
+// Runs right after every render (pages, dialogs), before the browser paints; only when form fields were added.
+const hasFields = (n) => n.nodeType === 1 && (n.matches('input, select, textarea, .field') || n.querySelector('.field, .unit'));
+new MutationObserver((list) => {
+  if (list.some((m) => [...m.addedNodes].some(hasFields))) decorateFields();
+}).observe(document.body, { childList: true, subtree: true });
 
 // ---------- helpers ----------
 async function api(url, opts = {}) {
@@ -183,6 +231,8 @@ function setTabs(active) {
   tabs.push(['/events', 'Events', ICON.cal], ['/association', 'Association', ICON.org]);
   if (isStaff()) tabs.push(['/admin', isAdmin() ? 'Members' : 'Review', ICON.users]);
   if (isAdmin()) tabs.push(['/system', 'Admin', ICON.shield]);
+  // Staff accounts without a member profile get their own "Account" tab (password, sign-in email).
+  if (!u.member_id) tabs.push(['/account', 'Account', ICON.user]);
   tabbar.innerHTML = tabs.map(([href, label, icon]) =>
     `<a href="#${href}" class="${active === href ? 'on' : ''}">${icon}<span>${label}</span></a>`).join('');
   tabbar.hidden = false;
@@ -193,7 +243,6 @@ const header = (title, sub = '', back = '') => `
     ${back ? `<a class="icon-btn" href="#${back}" aria-label="Back">${ICON.back}</a>` : ''}
     <div style="flex:1;min-width:0"><h1>${title}</h1>${sub ? `<div class="sub">${sub}</div>` : ''}</div>
     <button class="icon-btn help-btn" data-tour aria-label="System tour / help" title="ណែនាំប្រព័ន្ធ · System tour">?</button>
-    <a class="icon-btn" href="#/password" aria-label="Change password" title="Change password">${ICON.key}</a>
     <button class="icon-btn" data-logout aria-label="Sign out" title="Sign out">${ICON.logout}</button>
   </header>`;
 
@@ -340,12 +389,16 @@ function fieldHtml(f, m, role, need = null, opts = {}) {
     const cur = v || 'member';
     input = `<select ${name} ${dis}>${levels().map((l) => `<option value="${esc(l.key)}" ${l.key === cur ? 'selected' : ''}>${esc(l.kh)} · ${esc(l.en)}</option>`).join('')}</select>`;
   } else if (f.type === 'datetime') {
-    input = editable ? `<input type="datetime-local" ${name} value="${esc(toLocalInput(v))}">` : `<input value="${esc(fmtDateTime(v))}" disabled>`;
+    input = editable ? `<input type="datetime-local" ${name} value="${esc(toLocalInput(v))}">` : `<input value="${esc(fmtDateTime(v))}" data-icon="cal" disabled>`;
   } else if (f.type === 'select') {
     const choices = [...f.options];
-    if (v && !choices.includes(v)) choices.unshift(v);
-    const label = (o) => f.labels?.[o] || (f.key === 'status' && STATUS_MAP[o] ? `${o} · ${STATUS_MAP[o].en}` : o);
+    const old = v && !choices.includes(v);
+    if (old) choices.unshift(v);
+    const label = (o) => (old && o === v ? `${o} – please choose a province` : f.labels?.[o] || (f.key === 'status' && STATUS_MAP[o] ? `${o} · ${STATUS_MAP[o].en}` : o));
     input = `<select ${name} ${dis}><option value="">—</option>${choices.map((o) => `<option value="${esc(o)}" ${o === v ? 'selected' : ''}>${esc(label(o))}</option>`).join('')}</select>`;
+    // Free text entered before the province list existed (Google Form / earlier versions).
+    const was = m.legacy_text?.[f.key];
+    if (was && was !== v) input += `<small class="was">Originally entered: ${esc(was)}</small>`;
   } else if (f.type === 'textarea') {
     input = `<textarea ${name} ${dis} rows="2">${esc(v)}</textarea>`;
   } else if (f.type === 'number') {
@@ -413,7 +466,7 @@ function viewProfile(showMissing = false) {
            <button class="btn" type="button" id="submitReview" style="flex:1.6">ដាក់ស្នើ · Submit</button></div>`
         : '<button class="btn block" type="submit">Save changes · រក្សាទុក</button>'}</div>
     </form>
-    ${myDataCard(m)}`;
+    ${accountCard()}${myDataCard(m)}`;
   const form = $('#pf');
   bindMyData(() => viewProfile());
   // The status card already explains things here; buttons for applicants live in the bottom bar.
@@ -561,7 +614,7 @@ async function viewProfileLocked(editing = null) {
       To correct something, tap <b>Request change</b> on that section – an admin will review it.
       <br>ដើម្បីកែប្រែ សូមចុច «ស្នើកែប្រែ» នៅផ្នែកនោះ – អ្នកគ្រប់គ្រងនឹងពិនិត្យ។</p></div>
     <form id="pf" novalidate>${SECTIONS.map(sectionCard).join('')}</form>
-    ${myDataCard(m)}`;
+    ${accountCard()}${myDataCard(m)}`;
   app.querySelectorAll('.notice a[href="#/profile"]').forEach((a) => a.remove());
   bindSubmit(app);
   bindMyData(() => viewProfile());
@@ -684,13 +737,48 @@ function bindMyData(rerender) {
 }
 
 // ---------- password ----------
+// "My account" card: who is signed in, how, and the password / switch / sign-out buttons.
+const accountHome = () => (state.user?.member_id ? '/profile' : '/account');
+function accountCard() {
+  const u = state.user;
+  const [kh, en] = ROLE_TEXT[u.role] || [u.role, u.role];
+  return `<section class="card" id="account"><h2>គណនីរបស់ខ្ញុំ <small>My account &amp; sign-in</small></h2>
+    <dl class="kv">
+      <dt>Username</dt><dd>${esc(u.username)}</dd>
+      ${u.email && u.email !== u.username ? `<dt>Sign-in email</dt><dd>${esc(u.email)}</dd>` : ''}
+      <dt>Role</dt><dd>${esc(kh)} · ${esc(en)}</dd>
+    </dl>
+    ${u.email && state.config?.googleClientId ? `<p class="hint" style="text-align:left">You can also sign in with Google using <b>${esc(u.email)}</b>.</p>` : ''}
+    ${u.other_accounts ? `<p class="hint" style="text-align:left">This email also opens ${u.other_accounts} other account${u.other_accounts === 1 ? '' : 's'}. Use <b>Switch account</b> to sign in to ${u.other_accounts === 1 ? 'it' : 'one of them'}.</p>` : ''}
+    <div class="actions">
+      <a class="btn light" href="#/password">${ICON.key} Change password · ប្ដូរពាក្យសម្ងាត់</a>
+      ${u.other_accounts ? `<button class="btn light" type="button" data-switch>${ICON.users} Switch account</button>` : ''}
+      <button class="btn light" type="button" data-logout>${ICON.logout} Sign out</button>
+    </div>
+  </section>`;
+}
+// Switching = sign out, then sign in again and pick the other account.
+document.addEventListener('click', async (e) => {
+  if (!e.target.closest('[data-switch]')) return;
+  await api('/api/logout', { body: {} }).catch(() => {});
+  state.user = null;
+  state.member = null;
+  toast('Sign in again and choose the account');
+  go('/login');
+});
+
+function viewAccount() {
+  app.className = '';
+  app.innerHTML = `${header('My account', 'គណនីរបស់ខ្ញុំ')}${accountCard()}`;
+}
+
 function viewPassword() {
   const must = state.user.must_change;
   app.className = '';
-  app.innerHTML = `${header('Password', 'ពាក្យសម្ងាត់')}
+  app.innerHTML = `${header('Password', 'ពាក្យសម្ងាត់', must ? '' : accountHome())}
     <form class="card" id="pw">
       ${must ? '<p style="margin-top:0;color:#b45309">Please set a new password before continuing.<br>សូមកំណត់ពាក្យសម្ងាត់ថ្មី។</p>' : ''}
-      <div class="field"><span class="lbl">Username</span><input value="${esc(state.user.username)}" disabled></div>
+      <div class="field"><span class="lbl">Username</span><input value="${esc(state.user.username)}" data-icon="user" disabled></div>
       ${must ? '' : '<label class="field"><span class="lbl">Current password<small>Leave empty if you only use Google sign-in</small></span><input type="password" name="current" autocomplete="current-password"></label>'}
       <label class="field"><span class="lbl">New password<small>At least 8 characters</small></span><input type="password" name="password" minlength="8" required autocomplete="new-password"></label>
       <label class="field"><span class="lbl">Confirm new password</span><input type="password" name="confirm" required autocomplete="new-password"></label>
@@ -704,7 +792,7 @@ function viewPassword() {
       await api('/api/me/password', { body: { current: f.current?.value || '', password: f.password.value } });
       state.user.must_change = false;
       toast('Password updated');
-      go(home());
+      go(must ? home() : accountHome());
     } catch (err) { toast(err.message, true); }
   });
 }
@@ -962,7 +1050,7 @@ const AUDIT_LABEL = {
   'privacy.accept': 'Accepted privacy notice', 'data.export_own': 'Downloaded own data', 'deletion.request': 'Requested deletion',
   'deletion.cancel': 'Cancelled deletion request', 'members.export': 'Excel export', 'backup.download': 'Backup downloaded',
   'backup.restore': 'Backup restored', 'role.change': 'Role changed', 'password.reset': 'Password reset by admin',
-  'password.change': 'Password changed', 'user.create': 'System user created', 'user.delete': 'System user deleted',
+  'password.change': 'Password changed', 'user.create': 'System user created', 'user.delete': 'System user deleted', 'user.email': 'Sign-in email changed',
   'file.upload': 'File uploaded', 'file.view': 'Document viewed', 'association.update': 'Association info edited',
   'event.create': 'Event created', 'event.update': 'Event edited', 'event.delete': 'Event deleted', 'retention.purge': 'Retention clean-up',
   'event.join': 'Joined event', 'event.leave': 'Left event', 'event.bill_upload': 'Payment proof uploaded', 'event.export': 'Joiner list exported',
@@ -1288,6 +1376,7 @@ async function viewSystem() {
         <label class="field"><span class="lbl">Username</span><input name="username" required autocapitalize="none"></label>
         <label class="field"><span class="lbl">Role</span><select name="role"><option value="moderator">Moderator</option><option value="admin">Admin</option></select></label>
         <label class="field"><span class="lbl">Temporary password<small>At least 8 characters – they must change it at first sign-in</small></span><input name="password" type="text" minlength="8" required></label>
+        <label class="field"><span class="lbl">Sign-in email (optional)<small>Lets them sign in with this email or Google as well as the username</small></span><input name="email" type="email" autocapitalize="none" placeholder="name@example.com"></label>
       </div>
       <button class="btn block" type="submit">Create user</button>
       <p class="hint" style="text-align:left">To give a <b>member</b> moderator/admin rights, open them in Members › Account › Role.</p>
@@ -1400,14 +1489,18 @@ async function viewSystem() {
     try {
       const users = await api('/api/users');
       $('#users').innerHTML = `<div class="ulist">${users.map((u) => `
-        <div class="urow" data-id="${u.id}">
+        <div class="urow" data-id="${u.id}" data-email="${esc(u.email || '')}">
           <div class="info"><div class="n1">${esc(u.username)}${u.id === state.user.id ? ' <small>(you)</small>' : ''}</div>
-            <div class="n2">${u.member_no ? `Member ${esc(u.member_no)} · ${esc(u.name || '')}` : 'System account'}</div></div>
-          <select data-role ${u.id === state.user.id ? 'disabled' : ''}>
-            ${(u.member_id ? ['member', 'moderator', 'admin'] : ['moderator', 'admin']).map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}
-          </select>
-          <button class="icon-btn" data-reset title="Reset password">${ICON.key}</button>
-          ${u.id === state.user.id ? '' : `<button class="icon-btn" data-del title="${u.member_id ? 'Remove staff role' : 'Delete user'}">${ic('x')}</button>`}
+            <div class="n2">${u.member_no ? `Member ${esc(u.member_no)} · ${esc(u.name || '')}` : 'System account'}</div>
+            ${u.email ? `<div class="n2">${ic('mail')}${esc(u.email)}${u.shared_with_member ? ' · <span class="flag chg">also a member login</span>' : ''}</div>` : ''}</div>
+          <div class="u-tools">
+            <select data-role ${u.id === state.user.id ? 'disabled' : ''} aria-label="Role">
+              ${(u.member_id ? ['member', 'moderator', 'admin'] : ['moderator', 'admin']).map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}
+            </select>
+            ${u.member_id ? '' : `<button class="icon-btn" data-email title="Sign-in email" aria-label="Sign-in email">${ic('mail')}</button>`}
+            <button class="icon-btn" data-reset title="Reset password" aria-label="Reset password">${ICON.key}</button>
+            ${u.id === state.user.id ? '' : `<button class="icon-btn" data-del title="${u.member_id ? 'Remove staff role' : 'Delete user'}" aria-label="Remove">${ic('x')}</button>`}
+          </div>
         </div>`).join('')}</div>`;
     } catch (e) { toast(e.message, true); }
   };
@@ -1423,6 +1516,27 @@ async function viewSystem() {
     const row = e.target.closest('.urow');
     if (!row) return;
     const name = row.querySelector('.n1').textContent;
+    if (e.target.closest('[data-email]')) {
+      const cur = row.dataset.email;
+      const d = modal(`<form method="dialog" id="em"><h3 style="margin-top:0">Sign-in email · អ៊ីម៉ែលចូលប្រើ</h3>
+        <p class="hint" style="text-align:left;margin-top:0">${esc(name)} can sign in with this email (password or Google) as well as the username.
+          If a member uses the same email, they choose which account to open when signing in.</p>
+        <label class="field"><span class="lbl">Email</span><input type="email" name="email" value="${esc(cur)}" autocapitalize="none" placeholder="name@example.com"></label>
+        <div class="actions">${cur ? '<button type="button" class="btn danger" data-clear>Remove</button>' : ''}<span style="flex:1"></span>
+          <button type="button" class="btn light" data-close>Cancel</button><button class="btn" type="submit">Save</button></div></form>`);
+      const save = async (email) => {
+        try {
+          const r = await api(`/api/users/${row.dataset.id}`, { method: 'PUT', body: { email } });
+          d.close();
+          toast(r.shared_with_member ? 'Saved – this email also opens a member account; the person will choose at sign-in' : 'Sign-in email saved');
+          loadUsers();
+        } catch (err) { toast(err.message, true); }
+      };
+      d.querySelector('[data-close]').onclick = () => d.close();
+      d.querySelector('[data-clear]')?.addEventListener('click', () => save(''));
+      d.querySelector('#em').addEventListener('submit', (ev) => { ev.preventDefault(); save(ev.target.elements.email.value.trim()); });
+      return;
+    }
     if (e.target.closest('[data-del]')) {
       if (!confirm(`Remove ${name}?`)) return;
       try { await api(`/api/users/${row.dataset.id}`, { method: 'DELETE', body: {} }); toast('Removed'); loadUsers(); } catch (err) { toast(err.message, true); }
@@ -1443,7 +1557,7 @@ async function viewSystem() {
     e.preventDefault();
     const f = e.target.elements;
     try {
-      await api('/api/users', { body: { username: f.username.value.trim(), role: f.role.value, password: f.password.value } });
+      await api('/api/users', { body: { username: f.username.value.trim(), role: f.role.value, password: f.password.value, email: f.email.value.trim() } });
       toast('User created');
       e.target.reset();
       loadUsers();
@@ -1650,8 +1764,8 @@ async function viewEventEdit(id) {
       <label class="field"><span class="lbl">ទីកន្លែង<small>Location (a Google Maps search link is created automatically)</small></span><input name="location" value="${esc(e.location)}"></label>
       <label class="field"><span class="lbl">តំណ Google Maps<small>Optional exact map link – in Google Maps tap Share › Copy link (https://maps.app.goo.gl/…)</small></span>
         <input name="map_url" type="url" inputmode="url" placeholder="https://maps.app.goo.gl/..." value="${esc(e.map_url || '')}"></label>
-      <div class="actions" style="margin:-4px 0 14px"><button type="button" class="btn sm light" id="testmap">${ICON.pin} Test map link</button></div>
-      <div class="grid2" style="margin-bottom:14px">
+      <div class="actions" style="margin:-6px 0 16px"><button type="button" class="btn sm light" id="testmap">${ICON.pin} Test map link</button></div>
+      <div class="grid2">
         <label class="field"><span class="lbl">ចាប់ផ្ដើម *<small>Starts (date &amp; time)</small></span><input type="datetime-local" name="starts_at" required value="${esc(toLocalInput(e.starts_at))}"></label>
         <label class="field"><span class="lbl">បញ្ចប់<small>Ends (optional – otherwise 3 hours)</small></span><input type="datetime-local" name="ends_at" value="${esc(toLocalInput(e.ends_at))}"></label>
       </div>
@@ -1663,7 +1777,7 @@ async function viewEventEdit(id) {
         <label class="field"><span class="lbl">បិទការចុះឈ្មោះ<small>Close registration … days before the start (0 = until it starts)</small></span>
           <div class="unit"><input type="number" name="close_days" min="0" max="365" step="1" inputmode="numeric" value="${esc(e.close_days || 0)}"><span>ថ្ងៃ · days</span></div></label>
       </div>
-      <p class="hint" id="closehint" style="text-align:left;margin:-6px 0 14px"></p>
+      <p class="hint" id="closehint" style="text-align:left;margin:-8px 0 16px"></p>
       <label class="field"><span class="lbl">ការពិពណ៌នា<small>Description</small></span><textarea name="description" rows="6">${esc(e.description)}</textarea></label>
       <button class="btn block" type="submit">${isNew ? 'Publish event' : 'Save changes'}</button>
     </form>`;
@@ -1721,12 +1835,46 @@ function viewLogin() {
     const f = e.target.elements;
     try {
       const r = await api('/api/login', { body: { username: f.username.value.trim(), password: f.password.value } });
+      if (r.choose) return go('/choose');
       await afterLogin(r.user);
     } catch (err) { $('#lerr').textContent = err.message; }
   });
   initGoogle();
   const err = new URLSearchParams(location.hash.split('?')[1] || '').get('error');
   if (err) $('#lerr').textContent = err;
+}
+
+// Several accounts share the email that was just used to sign in: pick one.
+const ROLE_TEXT = { admin: ['អ្នកគ្រប់គ្រង', 'Admin'], moderator: ['អ្នកសម្របសម្រួល', 'Moderator'], member: ['សមាជិក', 'Member'] };
+async function viewChoose() {
+  tabbar.hidden = true;
+  app.className = '';
+  app.innerHTML = `<div class="login">${brand}<div class="card">${skeleton('lines', 2)}</div></div>`;
+  let list;
+  try { list = (await api('/api/login/choices')).accounts; } catch (e) { return go(`/login?error=${encodeURIComponent(e.message)}`); }
+  app.innerHTML = `<div class="login">${brand}
+    <div class="card"><h2>ជ្រើសរើសគណនី <small>Choose an account</small></h2>
+      <p class="hint" style="text-align:left;margin:0 0 14px">This email is used by more than one account. Which one do you want to use now?</p>
+      <div class="choose-list">${list.map((a) => {
+        const [kh, en] = ROLE_TEXT[a.role] || [a.role, a.role];
+        return `<button type="button" class="choose-item" data-id="${a.id}">
+          <span class="ci-icon">${a.member ? ICON.pass : ICON.shield}</span>
+          <span class="ci-text"><b>${a.member ? `${esc(a.name_kh || a.name_en)} · Member account` : `${esc(en)} account`}</b>
+            <small>${a.member ? `${esc(a.member_no || 'New applicant')}${a.role !== 'member' ? ` · also ${esc(en)}` : ''}` : `${esc(kh)} · ${esc(a.username)}`}</small></span>
+          ${ICON.next}</button>`;
+      }).join('')}</div>
+      <p class="err" id="cerr"></p>
+      <div class="actions"><a class="btn light block" href="#/login">Cancel · បោះបង់</a></div>
+    </div></div>`;
+  app.querySelector('.choose-list').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-id]');
+    if (!b) return;
+    b.disabled = true;
+    try {
+      const r = await api('/api/login/choose', { body: { id: Number(b.dataset.id) } });
+      await afterLogin(r.user);
+    } catch (err) { $('#cerr').textContent = err.message; b.disabled = false; }
+  });
 }
 
 function viewRegister() {
@@ -1780,6 +1928,7 @@ function initGoogle() {
       callback: async ({ credential }) => {
         try {
           const r = await api('/api/login/google', { body: { credential } });
+          if (r.choose) return go('/choose');
           await afterLogin(r.user);
         } catch (err) { $('#lerr').textContent = err.message; }
       },
@@ -1831,6 +1980,7 @@ async function route() {
   }
   if (!state.user) {
     if (path === '/register') return viewRegister();
+    if (path === '/choose') return viewChoose();
     return path === '/login' ? viewLogin() : go('/login');
   }
   if (['/login', '/register', '/'].includes(path)) return go(home());
@@ -1842,6 +1992,9 @@ async function route() {
   if (path === '/pass' && state.member) { setTabs('/pass'); return viewPass(); }
   if (path === '/profile' && state.member) { setTabs('/profile'); return viewProfile(); }
   if (path === '/password') { setTabs(''); return viewPassword(); }
+  if (path === '/account') { if (state.member) return go('/profile'); setTabs('/account'); return viewAccount(); }
+  // Already signed in (e.g. Google redirect while a session exists): still allow picking another account.
+  if (path === '/choose') return viewChoose();
   if (path === '/events') { setTabs('/events'); return viewEvents(); }
   const ev = path.match(/^\/events\/(\d+|new)(\/edit)?$/);
   if (ev) {

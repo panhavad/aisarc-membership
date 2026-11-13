@@ -105,7 +105,7 @@ export function sessionUser(req) {
   try {
     const { uid, v = 0, tv = 0, exp } = JSON.parse(Buffer.from(payload, 'base64url').toString());
     if (exp < Date.now() / 1000 || v !== sessionVersion()) return null;
-    const u = db.prepare('SELECT id, username, role, member_id, must_change, token_version FROM users WHERE id = ?').get(uid);
+    const u = db.prepare('SELECT id, username, email, role, member_id, must_change, token_version FROM users WHERE id = ?').get(uid);
     return u && u.token_version === tv ? u : null;
   } catch {
     return null;

@@ -69,9 +69,11 @@ const stopServer = (s) => new Promise((r) => { if (s.child.exitCode !== null) re
 let ipSeq = 1;
 function client(base, ip = `10.0.${Math.floor(ipSeq / 250)}.${(ipSeq++ % 250) + 1}`) {
   let cookie = '';
+  const extra = {}; // other cookies (e.g. the account-chooser cookie)
   const call = async (method, url, body, { headers = {}, raw = false } = {}) => {
     const h = { 'X-Forwarded-For': ip, ...headers };
-    if (cookie && !h.Cookie) h.Cookie = cookie;
+    const all = [cookie, ...Object.entries(extra).map(([k, v]) => `${k}=${v}`)].filter(Boolean).join('; ');
+    if (all && !h.Cookie) h.Cookie = all;
     let payload;
     if (body !== undefined) {
       if (Buffer.isBuffer(body)) { payload = body; h['Content-Type'] ??= 'application/octet-stream'; }
@@ -80,7 +82,12 @@ function client(base, ip = `10.0.${Math.floor(ipSeq / 250)}.${(ipSeq++ % 250) + 
     }
     const r = await fetch(base + url, { method, headers: h, body: payload, redirect: 'manual' });
     const sc = r.headers.getSetCookie?.() || [];
-    for (const c of sc) { const m = /^aisarc_session=([^;]*)/.exec(c); if (m) cookie = m[1] ? `aisarc_session=${m[1]}` : ''; }
+    for (const c of sc) {
+      const m = /^aisarc_session=([^;]*)/.exec(c);
+      if (m) { cookie = m[1] ? `aisarc_session=${m[1]}` : ''; continue; }
+      const o = /^([\w-]+)=([^;]*)/.exec(c);
+      if (o) { if (o[2] && !/expires=Thu, 01 Jan 1970/i.test(c)) extra[o[1]] = o[2]; else delete extra[o[1]]; }
+    }
     const buf = Buffer.from(await r.arrayBuffer());
     let json = null;
     if (!raw) { try { json = JSON.parse(buf.toString('utf8')); } catch { /* not json */ } }
@@ -100,7 +107,7 @@ function client(base, ip = `10.0.${Math.floor(ipSeq / 250)}.${(ipSeq++ % 250) + 
 // ---------------------------------------------------------------- helpers
 const iso = (days, hours = 0) => new Date(Date.now() + days * 864e5 + hours * 36e5).toISOString();
 const FULL = {
-  gender: 'ស្រី', nationality: 'ខ្មែរ', dob: '01/02/1990', birthplace: 'Kandal', address: 'Phnom Penh', tshirt: 'M',
+  gender: 'ស្រី', nationality: 'ខ្មែរ', dob: '01/02/1990', birthplace: 'កណ្តាល', address: 'ភ្នំពេញ', tshirt: 'M',
   phone: '012345678', occupation: 'Nurse', highest_degree: 'បរិញ្ញាបត្រ', workplace: 'Test Hospital', department: 'ICU',
   employment: 'បំរើការងាររដ្ឋ', experience: '5',
 };
@@ -223,6 +230,12 @@ try {
     eq(r.json.member.status, before.status, 'status'); eq(r.json.member.member_no, before.member_no, 'member_no');
     eq(r.json.member.email, before.email, 'email'); eq(r.json.member.joined_at, before.joined_at, 'joined_at');
   });
+  await t('R-11', 'Place of birth and current address accept only one of Cambodia\u2019s 25 provinces', async () => {
+    const r = (await app1.c.put('/api/me', { birthplace: 'Mars', address: 'សៀមរាប' })).json.member;
+    eq(r.address, 'សៀមរាប', 'province accepted'); eq(r.birthplace, 'កណ្តាល', 'free text ignored');
+    const { PROVINCES } = await import('../public/provinces.js');
+    eq(PROVINCES.length, 25, '24 provinces + Phnom Penh');
+  });
 
   // ------------------------------------------------------------ workflow
   section('Membership workflow');
@@ -316,6 +329,43 @@ try {
     eq((await A.get('/api/members?q=pager%20person&page=99&size=10')).json.page, 2, 'page clamped');
     assert(!('address' in p1.rows[0]) && !('cnc_reg_no' in p1.rows[0]), 'list rows carry only list fields');
     eq((await MOD.get('/api/members?page=1&size=10&s=REVIEW')).status, 200, 'moderator paging');
+  });
+  await t('A-08', 'Admin / moderator accounts can have a sign-in email (valid, unique, not on member accounts)', async () => {
+    const u = (await A.post('/api/users', { username: 'mod.mail', role: 'moderator', password: 'TempMod-2026!', email: 'Mod.Mail@Example.com' })).json;
+    eq(u.email, 'mod.mail@example.com', 'stored in lower case');
+    eq((await A.post('/api/users', { username: 'mod.mail2', role: 'moderator', password: 'TempMod-2026!', email: 'mod.mail@example.com' })).status, 400, 'duplicate email');
+    eq((await A.post('/api/users', { username: 'mod.mail3', role: 'moderator', password: 'TempMod-2026!', email: 'not-an-email' })).status, 400, 'invalid email');
+    const c = client(B);
+    const r = await c.post('/api/login', { username: 'MOD.MAIL@example.com', password: 'TempMod-2026!' });
+    eq(r.status, 200, 'sign in with the email'); eq(r.json.user.username, 'mod.mail', 'same account'); eq(r.json.user.must_change, true, 'temporary password still has to be changed');
+    const d = db(); const memberUser = d.prepare('SELECT id FROM users WHERE member_id IS NOT NULL LIMIT 1').get().id; d.close();
+    eq((await A.put(`/api/users/${memberUser}`, { email: 'x@example.com' })).status, 400, 'member accounts use the member email');
+    eq((await A.put(`/api/users/${u.id}`, { email: '' })).json.email, null, 'email removed');
+    eq((await c.get('/api/me')).status, 401, 'changing the sign-in email ends that account\u2019s sessions');
+    eq((await client(B).post('/api/login', { username: 'mod.mail@example.com', password: 'TempMod-2026!' })).status, 401, 'old email no longer works');
+  });
+  await t('A-09', 'One email, two accounts (member + admin): after signing in the person chooses the account', async () => {
+    const mem = await activeMember(B, A);
+    const adm = (await A.post('/api/users', { username: 'dual.admin', role: 'admin', password: 'TempAdmin-2026!', email: mem.email })).json;
+    eq(adm.shared_with_member, true, 'admin list shows the shared email');
+    const s = client(B);
+    await s.post('/api/login', { username: 'dual.admin', password: 'TempAdmin-2026!' });
+    await s.post('/api/me/password', { password: mem.password });
+    const c = client(B);
+    const r = await c.post('/api/login', { username: mem.email, password: mem.password });
+    eq(r.status, 200, 'status'); assert(!r.json.user && r.json.choose?.length === 2, 'two accounts offered, nobody signed in yet');
+    eq((await c.get('/api/me')).status, 401, 'no session before choosing');
+    eq((await c.get('/api/login/choices')).json.accounts.map((a) => a.role).sort().join(), 'admin,member', 'choices');
+    eq((await c.post('/api/login/choose', { id: 999999 })).status, 400, 'only the offered accounts');
+    const ch = (await c.post('/api/login/choose', { id: adm.id })).json;
+    eq(ch.user.role, 'admin', 'chosen account'); eq(ch.user.other_accounts, 1, 'knows about the other account');
+    eq((await c.get('/api/users')).status, 200, 'signed in as admin');
+    eq((await c.post('/api/login/choose', { id: adm.id })).status, 404, 'a choice can be used once');
+    eq((await client(B).get('/api/login/choices')).status, 404, 'the list needs the chooser cookie');
+    await s.post('/api/me/password', { current: mem.password, password: 'Other-Admin-2026!' });
+    const r2 = (await client(B).post('/api/login', { username: mem.email, password: mem.password })).json;
+    eq(r2.user?.role, 'member', 'with different passwords, each password opens its own account');
+    eq((await client(B).post('/api/login', { username: mem.email, password: 'Other-Admin-2026!' })).json.user?.role, 'admin', 'admin password');
   });
 
   // ------------------------------------------------------------ events
@@ -435,16 +485,16 @@ try {
     eq((await A.put('/api/settings', { edit_days: '0' })).status, 200, 'set 0 days');
     const me = (await lockedMem.c.get('/api/me')).json.member;
     eq(me.lock.locked, true, 'locked');
-    const r = await lockedMem.c.put('/api/me', { address: 'Changed' });
+    const r = await lockedMem.c.put('/api/me', { address: 'សៀមរាប' });
     eq(r.status, 403, 'edit refused'); eq(r.json.locked, true, 'locked flag');
     eq((await lockedMem.c.post('/api/upload', { field: 'photo', dataUrl: PNG_URL })).status, 403, 'upload refused');
     eq((await lockedMem.c.put('/api/me', { consent: 'យល់ព្រម' })).status, 200, 'consent still editable');
-    eq((await (await registerApplicant(B)).c.put('/api/me', { address: 'x' })).status, 200, 'applicants never locked');
+    eq((await (await registerApplicant(B)).c.put('/api/me', { address: 'តាកែវ' })).status, 200, 'applicants never locked');
   });
   await t('G-04', 'Change request per section: admin rejects (reason required) or approves (applied)', async () => {
     eq((await lockedMem.c.post('/api/me/change-requests', { section: 'membership', changes: { level: 'board' } })).status, 400, 'protected section');
     eq((await lockedMem.c.post('/api/me/change-requests', { section: 'contact', changes: {} })).status, 400, 'nothing changed');
-    const r1 = (await lockedMem.c.post('/api/me/change-requests', { section: 'personal', changes: { address: 'New address 1', member_no: 'HACK', phone: '011111111' }, note: 'moved' })).json;
+    const r1 = (await lockedMem.c.post('/api/me/change-requests', { section: 'personal', changes: { address: 'សៀមរាប', member_no: 'HACK', phone: '011111111' }, note: 'moved' })).json;
     eq(r1.status, 'pending', 'pending'); eq(Object.keys(r1.changes).join(), 'address', 'only section fields kept');
     eq((await lockedMem.c.get('/api/me')).json.member.address, FULL.address, 'not applied yet');
     assert((await A.get('/api/members?s=CHG')).json.some((m) => m.id === lockedMem.m.id), 'CHG filter');
@@ -452,9 +502,9 @@ try {
     eq((await A.post(`/api/change-requests/${r1.id}/decision`, { decision: 'reject' })).status, 400, 'reason required');
     eq((await A.post(`/api/change-requests/${r1.id}/decision`, { decision: 'reject', reason: 'Please give the full address' })).json.status, 'rejected', 'rejected');
     eq((await lockedMem.c.get('/api/me/change-requests')).json[0].reason, 'Please give the full address', 'member sees reason');
-    const r2 = (await lockedMem.c.post('/api/me/change-requests', { section: 'personal', changes: { address: 'No. 5, Street 7, Phnom Penh' } })).json;
+    const r2 = (await lockedMem.c.post('/api/me/change-requests', { section: 'personal', changes: { address: 'តាកែវ' } })).json;
     eq((await A.post(`/api/change-requests/${r2.id}/decision`, { decision: 'approve' })).json.status, 'approved', 'approved');
-    eq((await lockedMem.c.get('/api/me')).json.member.address, 'No. 5, Street 7, Phnom Penh', 'applied');
+    eq((await lockedMem.c.get('/api/me')).json.member.address, 'តាកែវ', 'applied');
     const acts = (await A.get(`/api/members/${lockedMem.m.id}/audit`)).json.map((x) => x.action);
     for (const a of ['change.request', 'change.reject', 'change.approve']) assert(acts.includes(a), `audit ${a}`);
     eq((await A.put('/api/settings', { edit_days: '30' })).status, 200, 'reset');
@@ -546,7 +596,7 @@ try {
     for (const a of ['members.export', 'member.approve', 'member.reject', 'login', 'register', 'event.create']) assert(all.includes(a), `missing ${a}`);
   });
   await t('D-05', 'Audit log stores field names only, never the personal values', async () => {
-    await mem2.c.put('/api/me', { address: 'SECRET-ADDRESS-123' });
+    await mem2.c.put('/api/me', { department: 'SECRET-ADDRESS-123' });
     const d = db(); const hit = d.prepare("SELECT COUNT(*) n FROM audit WHERE detail LIKE '%SECRET-ADDRESS-123%'").get().n; d.close();
     eq(hit, 0, 'value not in audit');
   });
@@ -795,6 +845,16 @@ try {
     await stopServer(srv); srv = await startServer(dataDir);
     const d2 = db(); const n = d2.prepare("SELECT COUNT(*) n FROM audit WHERE action = 'old.entry'").get().n; d2.close();
     eq(n, 0, 'old audit entry removed');
+  });
+  await t('T-03', 'Free-text place of birth / address from older data is mapped to a province (original kept for admins)', async () => {
+    const d = db();
+    const id = d.prepare('INSERT INTO members (member_no, joined_at, data) VALUES (?,?,?)').run('OLD-0001', iso(-30),
+      JSON.stringify({ name_kh: 'ចាស់', name_en: 'OLD TEXT', status: 'ACTIVE', birthplace: 'ភូមិ ក ឃុំ ខ ស្រុកបាទី ខេត្តតាកែវ', address: 'No 12, St 271, Toul Kork, Phnom Penh' })).lastInsertRowid;
+    d.close();
+    await stopServer(srv); srv = await startServer(dataDir);
+    const d2 = db(); const data = JSON.parse(d2.prepare('SELECT data FROM members WHERE id = ?').get(id).data); d2.close();
+    eq(data.birthplace, 'តាកែវ', 'birthplace'); eq(data.address, 'ភ្នំពេញ', 'address');
+    assert(data.legacy_text?.address?.includes('Toul Kork'), 'original wording kept');
   });
 } catch (e) {
   results.push({ cat: current, id: 'FATAL', title: 'Test run aborted', ok: false, ms: 0, err: String(e?.stack || e) });

@@ -107,7 +107,19 @@ const jsonSmall = express.json({ limit: '64kb' });
 const jsonBig = express.json({ limit: '12mb' });
 app.use((req, res, next) => (isBig(req.path) ? jsonBig : jsonSmall)(req, res, next));
 
-const userPayload = (u) => ({ id: u.id, username: u.username, role: u.role, member_id: u.member_id, must_change: !!u.must_change });
+// Sign-in email of an account: members sign in with their email (username); staff accounts may have one set.
+const loginEmail = (u) => u.email || (/@/.test(u.username) ? u.username : null);
+// All accounts a sign-in name opens: the username itself, or a staff account's sign-in email.
+const accountsFor = (name) => (name
+  ? db.prepare('SELECT * FROM users WHERE username = ? OR (email IS NOT NULL AND lower(email) = lower(?)) ORDER BY id').all(name, name)
+  : []);
+const userPayload = (u) => {
+  const email = loginEmail(u);
+  return {
+    id: u.id, username: u.username, email, role: u.role, member_id: u.member_id, must_change: !!u.must_change,
+    other_accounts: email ? accountsFor(email).filter((x) => x.id !== u.id).length : 0,
+  };
+};
 const nowIso = () => new Date().toISOString();
 
 function cleanValue(f, v) {
@@ -218,22 +230,72 @@ class UserError extends Error {}
 app.get('/healthz', (req, res) => res.json({ ok: true, version: VERSION }));
 app.get('/api/config', (req, res) => res.json({ version: VERSION, googleClientId: GOOGLE_CLIENT_ID, googleRedirectUri: GOOGLE_REDIRECT_URI }));
 
+// ---------- account chooser ----------
+// One email can open several accounts (e.g. a member who also has a stand-alone admin account with the
+// same email). After a successful sign-in the person picks one. The candidates are kept on the server for
+// 5 minutes behind a random, single-use, HttpOnly cookie – nothing about them is put in the URL.
+const CHOICE_COOKIE = 'aisarc_choice';
+const choices = new Map();
+const describeAccounts = (ids) => ids.map((id) => db.prepare(`SELECT u.id, u.username, u.role, u.member_id, m.member_no,
+  json_extract(m.data, '$.name_kh') AS name_kh, json_extract(m.data, '$.name_en') AS name_en
+  FROM users u LEFT JOIN members m ON m.id = u.member_id WHERE u.id = ?`).get(id)).filter(Boolean)
+  .map((u) => ({ id: u.id, username: u.username, role: u.role, member: !!u.member_id, member_no: u.member_no || null, name_kh: u.name_kh || '', name_en: u.name_en || '' }));
+function offerChoice(res, users, method) {
+  for (const [k, c] of choices) if (c.exp < Date.now()) choices.delete(k);
+  const token = crypto.randomBytes(24).toString('base64url');
+  choices.set(token, { ids: users.map((u) => u.id), method, exp: Date.now() + 5 * 60e3 });
+  res.cookie(CHOICE_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: SECURE, maxAge: 5 * 60e3, path: '/' });
+  return describeAccounts(users.map((u) => u.id));
+}
+const pendingChoice = (req) => {
+  const token = new RegExp(`(?:^|;\\s*)${CHOICE_COOKIE}=([^;]+)`).exec(req.headers.cookie || '')?.[1];
+  const c = token && choices.get(token);
+  return c && c.exp > Date.now() ? { token, ...c } : null;
+};
+const tempExpired = (u) => u.must_change && u.temp_expires && new Date(u.temp_expires) < new Date();
+
+app.get('/api/login/choices', (req, res) => {
+  const c = pendingChoice(req);
+  if (!c) return res.status(404).json({ error: 'Please sign in again' });
+  res.json({ accounts: describeAccounts(c.ids) });
+});
+
+app.post('/api/login/choose', (req, res) => {
+  const c = pendingChoice(req);
+  if (!c) return res.status(404).json({ error: 'Please sign in again' });
+  const id = Number(req.body?.id);
+  if (!c.ids.includes(id)) return res.status(400).json({ error: 'Invalid account' });
+  const u = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  if (!u) return res.status(404).json({ error: 'Please sign in again' });
+  if (tempExpired(u)) return res.status(401).json({ error: 'This temporary password has expired. Please ask the admin for a new one.' });
+  choices.delete(c.token);
+  res.clearCookie(CHOICE_COOKIE, { path: '/', httpOnly: true, sameSite: 'lax', secure: SECURE });
+  setSession(res, u);
+  req.user = u;
+  audit(req, c.method === 'google' ? 'login.google' : 'login', `user:${u.id}`, { chosen_from: c.ids.length });
+  res.json({ user: userPayload(u) });
+});
+
 app.post('/api/login', async (req, res) => {
   const username = String(req.body?.username || '').trim().slice(0, 200);
   const password = String(req.body?.password || '');
   if (loginLimited(req.ip, username)) return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
-  const u = username ? db.prepare('SELECT * FROM users WHERE username = ?').get(username) : null;
-  const ok = await verifyPassword(password, u?.password_hash); // runs even for unknown users (constant time)
-  if (!u || !ok) {
+  const cands = accountsFor(username);
+  // The hash check runs even for unknown names (constant time).
+  const checks = cands.length ? await Promise.all(cands.map((u) => verifyPassword(password, u.password_hash))) : [await verifyPassword(password, null)];
+  const ok = cands.filter((u, i) => checks[i]);
+  if (!ok.length) {
     loginFailed(req.ip, username);
     req.auditActor = username || '(empty)';
     audit(req, 'login.failed');
     return res.status(401).json({ error: 'Invalid username or password' });
   }
-  if (u.must_change && u.temp_expires && new Date(u.temp_expires) < new Date())
-    return res.status(401).json({ error: 'This temporary password has expired. Please ask the admin for a new one.' });
+  const usable = ok.filter((u) => !tempExpired(u));
+  if (!usable.length) return res.status(401).json({ error: 'This temporary password has expired. Please ask the admin for a new one.' });
   loginOk(req.ip, username);
-  if (needsRehash(u.password_hash)) db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), u.id);
+  for (const u of usable) if (needsRehash(u.password_hash)) db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), u.id);
+  if (usable.length > 1) return res.json({ choose: offerChoice(res, usable, 'password') });
+  const u = usable[0];
   setSession(res, u);
   req.user = u;
   audit(req, 'login', `user:${u.id}`);
@@ -291,6 +353,27 @@ function googleUser(g) {
 }
 const safeMessage = (e) => (e instanceof UserError ? e.message : 'Google sign-in failed');
 
+// Every account the verified Google email opens: the member / ADMIN_EMAILS account (created if needed) plus
+// stand-alone admin / moderator accounts that use this email. A staff-only email never creates an applicant.
+function googleAccounts(g) {
+  const email = g.email.toLowerCase();
+  const staff = db.prepare("SELECT * FROM users WHERE member_id IS NULL AND email IS NOT NULL AND lower(email) = ? AND role IN ('admin', 'moderator')").all(email);
+  const isMember = db.prepare('SELECT id FROM members WHERE lower(email) = ?').get(email);
+  if (staff.length && !isMember && !ADMIN_EMAILS.includes(email)) return staff;
+  const main = googleUser(g);
+  return [main, ...staff.filter((u) => u.id !== main.id)];
+}
+// Signs in directly, or (several accounts) returns the list to choose from.
+function googleSignIn(req, res, g) {
+  const list = googleAccounts(g);
+  if (list.length > 1) return { choose: offerChoice(res, list, 'google') };
+  const u = list[0];
+  setSession(res, u);
+  req.user = u;
+  audit(req, 'login.google', `user:${u.id}`);
+  return { user: userPayload(u) };
+}
+
 // Popup mode (no PUBLIC_URL): the browser posts the Google credential as JSON.
 app.post('/api/login/google', async (req, res) => {
   if (!GOOGLE_CLIENT_ID) return res.status(400).json({ error: 'Google sign-in is not configured' });
@@ -298,11 +381,7 @@ app.post('/api/login/google', async (req, res) => {
   const g = await verifyGoogleToken(String(req.body?.credential || ''), GOOGLE_CLIENT_ID).catch(() => null);
   if (!g) { loginFailed(req.ip, 'google'); return res.status(401).json({ error: 'Google sign-in failed' }); }
   try {
-    const u = googleUser(g);
-    setSession(res, u);
-    req.user = u;
-    audit(req, 'login.google', `user:${u.id}`);
-    res.json({ user: userPayload(u) });
+    res.json(googleSignIn(req, res, g));
   } catch (e) { res.status(409).json({ error: safeMessage(e) }); }
 });
 
@@ -318,11 +397,8 @@ app.post('/auth/google/callback', express.urlencoded({ extended: false, limit: '
   const g = await verifyGoogleToken(String(req.body?.credential || ''), GOOGLE_CLIENT_ID).catch(() => null);
   if (!g) { loginFailed(req.ip, 'google'); return fail('Google sign-in failed'); }
   try {
-    const u = googleUser(g);
-    setSession(res, u);
-    req.user = u;
-    audit(req, 'login.google', `user:${u.id}`);
-    res.redirect(303, '/#/');
+    const r = googleSignIn(req, res, g);
+    res.redirect(303, r.choose ? '/#/choose' : '/#/');
   } catch (e) { fail(safeMessage(e)); }
 });
 
@@ -928,9 +1004,21 @@ app.get('/api/export.xlsx', requireAdmin, (req, res) => {
 
 // ---------- admin: system users (admins / moderators) ----------
 const userView = (u) => ({
-  id: u.id, username: u.username, role: u.role, member_id: u.member_id, member_no: u.member_no || null,
+  id: u.id, username: u.username, email: u.email || null, role: u.role, member_id: u.member_id, member_no: u.member_no || null,
   name: u.name || null, has_password: !!u.password_hash,
+  // This email also opens a member account: the person picks the account when signing in.
+  shared_with_member: !!(u.email && db.prepare('SELECT id FROM users WHERE member_id IS NOT NULL AND username = ?').get(u.email)),
 });
+
+// Optional sign-in email for a stand-alone staff account ('' removes it). Returns the cleaned value or throws.
+function cleanStaffEmail(raw, exceptId = 0) {
+  const email = String(raw ?? '').trim().toLowerCase().slice(0, 200);
+  if (!email) return null;
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new UserError('Please enter a valid email');
+  if (db.prepare('SELECT id FROM users WHERE email IS NOT NULL AND lower(email) = ? AND id != ?').get(email, exceptId))
+    throw new UserError('Another admin / moderator account already uses this email');
+  return email;
+}
 
 app.get('/api/users', requireAdmin, (req, res) => {
   const rows = db.prepare(`SELECT u.*, m.member_no, json_extract(m.data, '$.name_kh') AS name FROM users u
@@ -946,10 +1034,12 @@ app.post('/api/users', requireAdmin, (req, res) => {
   if (!['admin', 'moderator'].includes(role)) return res.status(400).json({ error: 'Role must be admin or moderator' });
   if (password.length < 8 || password.length > 256) return res.status(400).json({ error: 'Password must be 8–256 characters' });
   if (db.prepare('SELECT id FROM users WHERE username = ?').get(username)) return res.status(400).json({ error: 'Username already exists' });
-  db.prepare('INSERT INTO users (username, password_hash, role, must_change, temp_expires) VALUES (?,?,?,1,?)')
-    .run(username, hashPassword(password), role, tempExpiry());
-  audit(req, 'user.create', `username:${username}`, { role });
-  res.json({ ok: true });
+  let email;
+  try { email = cleanStaffEmail(req.body?.email); } catch (e) { return res.status(400).json({ error: e.message }); }
+  const r = db.prepare('INSERT INTO users (username, password_hash, role, must_change, temp_expires, email) VALUES (?,?,?,1,?,?)')
+    .run(username, hashPassword(password), role, tempExpiry(), email);
+  audit(req, 'user.create', `username:${username}`, { role, email: email ? 'yes' : 'no' });
+  res.json(userView(db.prepare('SELECT * FROM users WHERE id = ?').get(r.lastInsertRowid)));
 });
 
 const adminCount = () => db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").get().n;
@@ -957,20 +1047,35 @@ const adminCount = () => db.prepare("SELECT COUNT(*) AS n FROM users WHERE role 
 app.put('/api/users/:id', requireAdmin, (req, res) => {
   const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(req.params.id));
   if (!u) return res.status(404).json({ error: 'Not found' });
-  const role = req.body?.role;
-  const allowed = u.member_id ? ['member', 'moderator', 'admin'] : ['moderator', 'admin'];
-  if (!allowed.includes(role)) return res.status(400).json({ error: 'Invalid role' });
-  if (u.role === 'admin' && role !== 'admin' && (u.id === req.user.id || adminCount() <= 1))
-    return res.status(400).json({ error: 'You cannot remove your own admin role or the last admin' });
-  db.prepare('UPDATE users SET role = ?, token_version = token_version + 1 WHERE id = ?').run(role, u.id);
-  audit(req, 'role.change', `user:${u.id}`, { from: u.role, to: role });
-  res.json({ ok: true });
+  const b = req.body || {};
+  if ('email' in b) {
+    if (u.member_id) return res.status(400).json({ error: 'Member accounts sign in with the member email (change it on the member page)' });
+    let email;
+    try { email = cleanStaffEmail(b.email, u.id); } catch (e) { return res.status(400).json({ error: e.message }); }
+    if ((email || null) !== (u.email || null)) {
+      // A changed sign-in email ends that account's sessions.
+      db.prepare('UPDATE users SET email = ?, token_version = token_version + 1 WHERE id = ?').run(email, u.id);
+      audit(req, 'user.email', `user:${u.id}`, { set: email ? 'yes' : 'removed' });
+    }
+  }
+  if ('role' in b) {
+    const role = b.role;
+    const allowed = u.member_id ? ['member', 'moderator', 'admin'] : ['moderator', 'admin'];
+    if (!allowed.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+    if (u.role === 'admin' && role !== 'admin' && (u.id === req.user.id || adminCount() <= 1))
+      return res.status(400).json({ error: 'You cannot remove your own admin role or the last admin' });
+    if (role !== u.role) {
+      db.prepare('UPDATE users SET role = ?, token_version = token_version + 1 WHERE id = ?').run(role, u.id);
+      audit(req, 'role.change', `user:${u.id}`, { from: u.role, to: role });
+    }
+  }
+  res.json(userView(db.prepare('SELECT u.*, m.member_no FROM users u LEFT JOIN members m ON m.id = u.member_id WHERE u.id = ?').get(u.id)));
 });
 
 app.post('/api/users/:id/password', requireAdmin, (req, res) => {
   const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(req.params.id));
   if (!u) return res.status(404).json({ error: 'Not found' });
-  if (u.id === req.user.id) return res.status(400).json({ error: 'Use the key icon to change your own password' });
+  if (u.id === req.user.id) return res.status(400).json({ error: 'Change your own password in My account › Change password' });
   const pw = randomPassword();
   db.prepare('UPDATE users SET password_hash = ?, must_change = 1, temp_expires = ?, token_version = token_version + 1 WHERE id = ?')
     .run(hashPassword(pw), tempExpiry(), u.id);

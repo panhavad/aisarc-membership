@@ -1,4 +1,10 @@
 // Shared definitions used by both the server and the browser.
+import { PROVINCES } from './provinces.js';
+
+// Place of birth / current address: one of Cambodia's 25 provinces (stored in Khmer).
+export const PROVINCE_OPTIONS = PROVINCES.map((p) => p.kh);
+export const PROVINCE_LABELS = Object.fromEntries(PROVINCES.map((p) => [p.kh, `${p.kh} · ${p.en}`]));
+export const PROVINCE_FIELDS = ['birthplace', 'address'];
 
 export const STATUSES = [
   { key: 'DRAFT', kh: 'មិនទាន់ដាក់ស្នើ', en: 'Profile not submitted yet', color: 'grey' },
@@ -61,8 +67,8 @@ export const FIELDS = [
   { key: 'nationality', col: 6, section: 'personal', kh: 'សញ្ជាតិ', en: 'Nationality', list: ['ខ្មែរ'] },
   { key: 'dob', col: 7, section: 'personal', kh: 'ថ្ងៃខែឆ្នាំកំណើត', en: 'Date of birth', placeholder: 'DD/MM/YYYY' },
   { key: 'age_group', col: 8, section: 'personal', kh: 'អាយុ', en: 'Age group', type: 'select', options: ['២០ - ៣០ឆ្នាំ', '៣០ - ៤០ឆ្នាំ', '៤០ - ៥០ឆ្នាំ', '៥០ - ៦០ឆ្នាំ', '៦០ឆ្នាំ ឡើង'] },
-  { key: 'birthplace', col: 9, section: 'personal', kh: 'ទីកន្លែងកំណើត', en: 'Place of birth', type: 'textarea' },
-  { key: 'address', col: 10, section: 'personal', kh: 'អាស័យដ្ឋានបច្ចុប្បន្ន', en: 'Current address', type: 'textarea' },
+  { key: 'birthplace', col: 9, section: 'personal', kh: 'ទីកន្លែងកំណើត', en: 'Place of birth (province)', type: 'select', options: PROVINCE_OPTIONS, labels: PROVINCE_LABELS },
+  { key: 'address', col: 10, section: 'personal', kh: 'អាស័យដ្ឋានបច្ចុប្បន្ន', en: 'Current address (province)', type: 'select', options: PROVINCE_OPTIONS, labels: PROVINCE_LABELS },
   { key: 'tshirt', col: 11, section: 'personal', kh: 'ទំហំអាវយឺត', en: 'T-shirt size', type: 'select', options: ['S', 'M', 'L', 'XL', 'XXL'] },
 
   { key: 'phone', col: 12, section: 'contact', kh: 'លេខទូរស័ព្ទ', en: 'Phone', type: 'tel' },

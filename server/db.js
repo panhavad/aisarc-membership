@@ -1,6 +1,8 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
+import { PROVINCE_FIELDS, PROVINCE_OPTIONS } from '../public/fields.js';
+import { provinceOf } from '../public/provinces.js';
 
 export const DATA_DIR = path.resolve(process.env.DATA_DIR || './data');
 export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
@@ -69,6 +71,7 @@ for (const [table, col, def] of [
   ['users', 'token_version', 'INTEGER NOT NULL DEFAULT 0'],
   ['users', 'email_verified', 'INTEGER NOT NULL DEFAULT 0'],
   ['users', 'temp_expires', 'TEXT'],
+  ['users', 'email', 'TEXT'], // optional sign-in email for stand-alone admin / moderator accounts
   ['events', 'map_url', 'TEXT'],
   ['events', 'price', 'REAL NOT NULL DEFAULT 0'],
   ['events', 'close_days', 'INTEGER NOT NULL DEFAULT 0'],
@@ -77,6 +80,7 @@ for (const [table, col, def] of [
 ]) {
   if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
 }
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users(lower(email)) WHERE email IS NOT NULL');
 
 const now = () => new Date().toISOString();
 
@@ -181,12 +185,21 @@ export function toNumberText(v) {
   return m ? m[0] : '';
 }
 
-// One-off data migrations: "experience" became a number; per-member "payment" moved to Association Info.
+// One-off data migrations: "experience" became a number; per-member "payment" moved to Association Info;
+// place of birth / current address became a province (the original free text is kept in legacy_text for admins).
 for (const r of db.prepare('SELECT id, data FROM members').all()) {
   const d = JSON.parse(r.data);
   let changed = false;
   if (d.experience && !/^\d+(\.\d+)?$/.test(d.experience)) { d.experience = toNumberText(d.experience); changed = true; }
   if ('payment' in d) { delete d.payment; changed = true; }
+  for (const k of PROVINCE_FIELDS) {
+    if (!d[k] || PROVINCE_OPTIONS.includes(d[k])) continue;
+    const p = provinceOf(d[k]);
+    if (!p) continue;
+    d.legacy_text = { ...(d.legacy_text || {}), [k]: d[k] };
+    d[k] = p;
+    changed = true;
+  }
   if (changed) db.prepare('UPDATE members SET data = ? WHERE id = ?').run(JSON.stringify(d), r.id);
 }
 

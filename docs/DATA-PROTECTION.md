@@ -29,11 +29,12 @@ This document describes how the AISARC Membership Portal protects members' perso
 
 | Data | Purpose | Legal basis | Who can see it | Retention |
 | --- | --- | --- | --- | --- |
-| Identity: names, gender, date of birth, age group, nationality, place of birth | Membership, digital pass, verification | Consent (declaration) + membership | Member, moderators, admins | While a member; deleted ≤ 30 days after a deletion request |
-| Contact: address, phone, Telegram, email / Facebook | Contacting members | Consent + membership | Member, moderators, admins | As above |
+| Identity: names, gender, date of birth, age group, nationality, place of birth (province only) | Membership, digital pass, verification | Consent (declaration) + membership | Member, moderators, admins | While a member; deleted ≤ 30 days after a deletion request |
+| Contact: current address (province only), phone, Telegram, email / Facebook | Contacting members | Consent + membership | Member, moderators, admins | As above |
 | Professional: occupation, training, degrees, workplace, department, experience, council registration no. / date | Checking eligibility | Consent + membership | Member, moderators, admins | As above |
 | Documents: photo, council certificate | Pass photo, verification | Consent | Member, moderators, admins (certificate views are logged) | As above |
-| Account: email, password hash, role, sign-in method | Security, access control | Membership | Admins (hash never shown) | As above |
+| Account: email, password hash, role, sign-in method; optional sign-in email of admin / moderator accounts | Security, access control | Membership | Admins (hash never shown) | As above |
+| Original free-text place of birth / address from the Google Form (`legacy_text`) | Checking the automatic province mapping | Membership (records) | Member (own data download), moderators, admins | Kept with the record; can be removed once the province is confirmed (data minimisation) |
 | Membership: number, status, dates, level, review decisions, consent and privacy-notice records | Administration, proof of consent | Membership + legal obligation (records) | Member, moderators, admins | As above |
 | Event participation | Organising events | Membership | Member (own), moderators, admins | As above |
 | Event payment proofs (receipt photo / PDF uploaded by the member) | Checking event fees were paid | Membership (the member chooses to join a paid event) | Member (own), moderators, admins (views are logged; exports contain sign-in-protected links, not the images) | Deleted when the member cancels the seat or the event is deleted; otherwise as above |
