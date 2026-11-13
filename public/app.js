@@ -43,6 +43,8 @@ const ICON = {
   cap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 9 10-5 10 5-10 5L2 9Z"/><path d="M6 11v5c2 2 10 2 12 0v-5M22 9v6"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8L12 3.5Z"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>',
+  prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
 };
 // Inline icon that sits in a line of text (no emoji anywhere in the UI).
 const ic = (name) => ICON[name].replace('<svg ', '<svg class="ic" aria-hidden="true" ');
@@ -63,6 +65,24 @@ async function api(url, opts = {}) {
 }
 
 let toastTimer;
+// Skeleton placeholders ("lazy loader") shown in the shape of the content while it loads – no spinners.
+const skLine = (w, h = 12) => `<span class="sk sk-line" style="width:${w}%;height:${h}px"></span>`;
+const skRep = (n, f) => Array.from({ length: n }, (_, i) => f(i)).join('');
+function skeleton(kind, n = 3) {
+  const wrap = (html, cls = '') => `<div class="sk-wrap ${cls}" aria-busy="true" aria-label="Loading">${html}</div>`;
+  if (kind === 'rows') return wrap(skRep(n, (i) => `<div class="mrow sk-row"><span class="sk sk-avatar"></span>
+    <div class="info">${skLine(50 + (i % 3) * 10, 14)}${skLine(40)}${skLine(60 - (i % 2) * 15)}</div><span class="sk sk-chip"></span></div>`), 'list');
+  if (kind === 'events') return wrap(skRep(n, (i) => `<div class="ecard sk-row"><span class="sk sk-date"></span>
+    <div class="info">${skLine(70 - (i % 2) * 15, 16)}${skLine(55)}${skLine(45)}${skLine(35)}</div></div>`), 'elist');
+  if (kind === 'lines') return wrap(skRep(n, (i) => `<div class="sk-lines">${skLine(85 - (i % 3) * 15, 13)}${skLine(45 + (i % 2) * 20)}</div>`));
+  if (kind === 'member') return wrap(`<div class="sk-head">${skLine(30, 28)}</div><div class="admin-edit"><div class="side">
+    <span class="sk sk-block sk-pass"></span>${skLine(80, 44)}</div><div>${skRep(3, () => `<div class="card">${skLine(35, 16)}
+    <div class="grid2">${skRep(4, () => `<div class="sk-field">${skLine(40)}<span class="sk sk-input"></span></div>`)}</div></div>`)}</div></div>`);
+  // A generic page: title, then a few cards with lines.
+  return wrap(`<div class="sk-head">${skLine(45, 28)}${skLine(25)}</div>${skRep(n, (i) => `<div class="card">${skLine(40, 16)}
+    ${skRep(3 + (i % 2), (j) => skLine(90 - j * 12))}</div>`)}`);
+}
+
 function toast(msg, error = false) {
   const t = $('#toast');
   t.innerHTML = `${ic(error ? 'alert' : 'check')}<span></span>`;
@@ -495,6 +515,7 @@ function changeList(r) {
 
 async function viewProfileLocked(editing = null) {
   const m = state.member;
+  if (!$('#pf')) app.innerHTML = skeleton('page', 3);
   let requests = [];
   try { requests = await api('/api/me/change-requests'); } catch (e) { toast(e.message, true); }
   const recent = (sec) => requests.find((r) => r.section === sec && !['replaced', 'cancelled'].includes(r.status));
@@ -691,7 +712,7 @@ function viewPassword() {
 // ---------- association info ----------
 async function viewAssociation(edit = false) {
   app.className = '';
-  app.innerHTML = '<div class="spin"></div>';
+  app.innerHTML = skeleton('page', 3);
   let a;
   try { a = await api('/api/association'); } catch (e) { return toast(e.message, true); }
   if (edit && isAdmin()) {
@@ -763,53 +784,60 @@ async function viewAssociation(edit = false) {
 }
 
 // ---------- members list (admin + moderator) ----------
+// The server sends one page at a time (10 / 20 / 50 rows); search, filters and paging each make a new request.
+const LIST_SIZES = [10, 20, 50];
 let searchTimer;
 async function viewAdmin() {
   app.className = 'wide';
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
-  const q = params.get('q') || '';
   let filter = params.get('s') || (isAdmin() ? 'ALL' : 'REVIEW');
+  let page = Math.max(1, parseInt(params.get('p'), 10) || 1);
+  const savedSize = Number(localStorage.getItem('aisarc_list_size'));
+  let size = LIST_SIZES.includes(Number(params.get('n'))) ? Number(params.get('n')) : LIST_SIZES.includes(savedSize) ? savedSize : 10;
   let selecting = false;
   const selected = new Set();
+  let data = null;
+  let seq = 0;
   app.innerHTML = `${header(isAdmin() ? 'Members' : 'Review', isAdmin() ? 'សមាជិក · Admin' : 'ពិនិត្យសមាជិក · Moderator')}
-    <div class="search">${ICON.search}<input id="q" type="search" placeholder="Search name, phone, email, workplace, no…" value="${esc(q)}" autocomplete="off"></div>
-    <div class="filters" id="filters"></div>
+    <div class="search">${ICON.search}<input id="q" type="search" placeholder="Search name, phone, email, workplace, no…" value="${esc(params.get('q') || '')}" autocomplete="off"></div>
+    <div class="filters" id="filters">${skRep(6, () => '<span class="sk sk-pill"></span>')}</div>
     <div class="toolbar" id="toolbar"></div>
-    <div class="list" id="list"><div class="spin"></div></div>`;
-  let rows = [];
-  let shown = [];
+    <div class="list" id="list">${skeleton('rows', size)}</div>
+    <div class="pager" id="pager"></div>`;
+  const term = () => $('#q').value.trim();
   const updateUrl = () => {
     const p = new URLSearchParams();
-    if ($('#q').value) p.set('q', $('#q').value);
+    if (term()) p.set('q', term());
     p.set('s', filter);
+    if (page > 1) p.set('p', page);
+    if (size !== 10) p.set('n', size);
     const h = `/admin?${p}`;
     history.replaceState(null, '', `#${h}`);
     sessionStorage.setItem('adminList', h);
   };
-  const renderToolbar = () => {
-    const count = `<span class="count">${selecting ? `${selected.size} selected` : `${shown.length} member${shown.length === 1 ? '' : 's'}`}</span>`;
-    if (!isAdmin()) return ($('#toolbar').innerHTML = count);
-    $('#toolbar').innerHTML = selecting
-      ? `${count}<button class="btn sm light" data-act="all">${shown.length && shown.every((m) => selected.has(m.id)) ? 'Clear all' : 'Select all'}</button>
-         <button class="btn sm" data-act="export-sel" ${selected.size ? '' : 'disabled'}>Export selected</button>
-         <button class="btn sm light" data-act="cancel">Cancel</button>`
-      : `${count}<a class="btn sm" href="#/admin/new">+ Add</a>
-         <button class="btn sm light" data-act="select">Select</button>
-         <button class="btn sm light" data-act="export-all" ${shown.length ? '' : 'disabled'} title="Download the members shown (current search and filter) as Excel">Export (${shown.length})</button>`;
-  };
-  // Same rules as the server's export filter.
-  const matches = (m, f) => (f === 'ALL' ? true : f === 'DUP' ? m.dups?.length > 0 : f === 'CHG' ? m.pending_changes > 0
-    : f.startsWith('L:') ? m.level === f.slice(2) : m.status === f);
-  const render = () => {
-    const chips = [['ALL', 'All'], ...STATUSES.map((s) => [s.key, s.key[0] + s.key.slice(1).toLowerCase()]),
+  const renderFilters = () => {
+    const c = data.counts;
+    const chips = [['ALL', 'All'], ...STATUSES.map((st) => [st.key, st.key[0] + st.key.slice(1).toLowerCase()]),
       ['DUP', 'Duplicate', 'alert'], ...(isAdmin() ? [['CHG', 'Change requests', 'edit']] : []),
       ...levels().filter((l) => l.key !== 'member').map((l) => [`L:${l.key}`, l.en])];
     $('#filters').innerHTML = chips
-      .map(([k, l, icon]) => [k, l, rows.filter((m) => matches(m, k)).length, icon])
-      .filter(([k, , n]) => !k.startsWith('L:') || n > 0 || k === filter)
-      .map(([k, l, n, icon]) => `<button type="button" data-f="${esc(k)}" class="${filter === k ? 'on' : ''}${k === 'DUP' || k === 'CHG' ? ' warn' : ''}">${icon ? ic(icon) : ''}${esc(l)}<b>${n}</b></button>`).join('');
-    shown = rows.filter((m) => matches(m, filter));
-    $('#list').innerHTML = shown.length ? shown.map((m) => `
+      .filter(([k]) => !k.startsWith('L:') || c[k] || k === filter)
+      .map(([k, l, icon]) => `<button type="button" data-f="${esc(k)}" class="${filter === k ? 'on' : ''}${k === 'DUP' || k === 'CHG' ? ' warn' : ''}">${icon ? ic(icon) : ''}${esc(l)}<b>${c[k] || 0}</b></button>`).join('');
+  };
+  const renderToolbar = () => {
+    const rows = data?.rows || [];
+    const count = `<span class="count">${selecting ? `${selected.size} selected` : `${data ? data.total : '…'} member${data?.total === 1 ? '' : 's'}`}</span>`;
+    if (!isAdmin()) return ($('#toolbar').innerHTML = count);
+    $('#toolbar').innerHTML = selecting
+      ? `${count}<button class="btn sm light" data-act="all">${rows.length && rows.every((m) => selected.has(m.id)) ? 'Clear page' : 'Select page'}</button>
+         <button class="btn sm" data-act="export-sel" ${selected.size ? '' : 'disabled'}>${ic('download')} Export selected</button>
+         <button class="btn sm light" data-act="cancel">Cancel</button>`
+      : `${count}<a class="btn sm" href="#/admin/new">+ Add</a>
+         <button class="btn sm light" data-act="select">Select</button>
+         <button class="btn sm light" data-act="export" ${data?.total ? '' : 'disabled'}>${ic('download')} Export</button>`;
+  };
+  const renderList = () => {
+    $('#list').innerHTML = data.rows.length ? data.rows.map((m) => `
       <a class="mrow${selecting && selected.has(m.id) ? ' sel' : ''}" href="#/admin/m/${m.id}" data-id="${m.id}">
         ${selecting ? `<input type="checkbox" class="pick" tabindex="-1" ${selected.has(m.id) ? 'checked' : ''} aria-label="Select">` : ''}
         <div class="avatar">${photoHtml(m)}</div>
@@ -820,49 +848,108 @@ async function viewAdmin() {
             ${m.pending_changes ? `<span class="flag chg">${ic('edit')} Change request</span>` : ''}</div>` : ''}</div>
         ${chip(m)}
       </a>`).join('') : '<div class="empty">No members found</div>';
-    renderToolbar();
   };
-  const load = async (term) => {
-    try { rows = await api(`/api/members?q=${encodeURIComponent(term)}`); render(); } catch (e) { toast(e.message, true); }
+  const renderPager = () => {
+    const from = data.total ? (data.page - 1) * data.size + 1 : 0;
+    const to = Math.min(data.total, data.page * data.size);
+    $('#pager').innerHTML = `
+      <label class="pg-size">Show <select id="psize" aria-label="Members per page">${LIST_SIZES.map((n) => `<option ${n === size ? 'selected' : ''}>${n}</option>`).join('')}</select> per page</label>
+      <span class="pg-range">${from}–${to} of ${data.total}</span>
+      <div class="pg-nav">
+        <button type="button" class="btn sm light" data-pg="${data.page - 1}" ${data.page <= 1 ? 'disabled' : ''} aria-label="Previous page">${ic('prev')}</button>
+        <span class="pg-num">Page ${data.page} / ${data.pages}</span>
+        <button type="button" class="btn sm light" data-pg="${data.page + 1}" ${data.page >= data.pages ? 'disabled' : ''} aria-label="Next page">${ic('next')}</button>
+      </div>`;
   };
-  updateUrl();
-  load(q);
+  const render = () => { renderFilters(); renderList(); renderToolbar(); renderPager(); };
+  const load = async ({ scroll = false } = {}) => {
+    const my = ++seq;
+    // Keep the chips; show the skeleton only where the rows will appear.
+    $('#list').innerHTML = skeleton('rows', Math.min(size, data?.rows.length || size));
+    if (scroll) $('#filters').scrollIntoView({ block: 'nearest' });
+    const p = new URLSearchParams({ s: filter, page, size });
+    if (term()) p.set('q', term());
+    try {
+      const r = await api(`/api/members?${p}`);
+      if (my !== seq || !$('#list')) return; // a newer request replaced this one
+      data = r;
+      page = r.page;
+      updateUrl();
+      render();
+    } catch (e) { if (my === seq) { toast(e.message, true); $('#list').innerHTML = '<div class="empty">Could not load members</div>'; } }
+  };
+  renderToolbar();
+  load();
+
   $('#filters').addEventListener('click', (e) => {
     const b = e.target.closest('[data-f]');
-    if (!b) return;
+    if (!b || b.dataset.f === filter) return;
     filter = b.dataset.f;
-    updateUrl();
-    render();
+    page = 1;
+    $('#filters').querySelectorAll('[data-f]').forEach((x) => x.classList.toggle('on', x === b));
+    load();
   });
   $('#q').addEventListener('input', () => {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => { updateUrl(); load($('#q').value); }, 200);
+    searchTimer = setTimeout(() => { page = 1; load(); }, 300);
   });
-  // In select mode, tapping a row toggles it instead of opening the member.
+  $('#pager').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pg]');
+    if (!b || b.disabled) return;
+    page = Number(b.dataset.pg);
+    load({ scroll: true });
+  });
+  $('#pager').addEventListener('change', (e) => {
+    if (e.target.id !== 'psize') return;
+    size = Number(e.target.value);
+    try { localStorage.setItem('aisarc_list_size', size); } catch { /* private mode */ }
+    page = 1;
+    load();
+  });
+  // In select mode, tapping a row toggles it instead of opening the member. The selection is kept across pages.
   $('#list').addEventListener('click', (e) => {
     const row = e.target.closest('.mrow');
     if (!row || !selecting) return;
     e.preventDefault();
     const id = Number(row.dataset.id);
     selected.has(id) ? selected.delete(id) : selected.add(id);
-    render();
+    renderList();
+    renderToolbar();
   });
+  const exportWarn = 'The Excel file contains personal data. Keep it only as long as needed, store it securely and never share it publicly. Every export is recorded in the audit log.';
   $('#toolbar').addEventListener('click', (e) => {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'select') { selecting = true; render(); }
-    if (act === 'cancel') { selecting = false; selected.clear(); render(); }
+    if (!act || !data) return;
+    if (act === 'select') { selecting = true; renderList(); renderToolbar(); }
+    if (act === 'cancel') { selecting = false; selected.clear(); renderList(); renderToolbar(); }
     if (act === 'all') {
-      const all = shown.every((m) => selected.has(m.id));
-      shown.forEach((m) => (all ? selected.delete(m.id) : selected.add(m.id)));
-      render();
+      const all = data.rows.every((m) => selected.has(m.id));
+      data.rows.forEach((m) => (all ? selected.delete(m.id) : selected.add(m.id)));
+      renderList();
+      renderToolbar();
     }
-    const exportWarn = 'The Excel file contains personal data. Only keep it as long as needed, store it securely and never share it publicly. The export is recorded in the audit log. Continue?';
-    if (act === 'export-all' && confirm(exportWarn)) {
-      const p = new URLSearchParams({ s: filter });
-      if ($('#q').value.trim()) p.set('q', $('#q').value.trim());
-      location.href = `/api/export.xlsx?${p}`;
+    if (act === 'export-sel' && selected.size && confirm(`${exportWarn}\n\nExport ${selected.size} selected member(s)?`)) {
+      location.href = `/api/export.xlsx?ids=${[...selected].join(',')}`;
     }
-    if (act === 'export-sel' && selected.size && confirm(exportWarn)) location.href = `/api/export.xlsx?ids=${[...selected].join(',')}`;
+    if (act === 'export') {
+      const d = modal(`<h3 style="margin-top:0">Export to Excel · នាំចេញ</h3>
+        <p class="hint" style="text-align:left">${esc(exportWarn)}</p>
+        <div class="export-opts">
+          <button type="button" class="btn block light" data-x="page" ${data.rows.length ? '' : 'disabled'}>${ic('file')}<span>Current page<small>${data.rows.length} member${data.rows.length === 1 ? '' : 's'} shown on this page</small></span></button>
+          <button type="button" class="btn block" data-x="all">${ic('download')}<span>All matching<small>${data.total} member${data.total === 1 ? '' : 's'} – current search and filter, all pages</small></span></button>
+        </div>
+        <div class="actions" style="justify-content:flex-end"><button type="button" class="btn light" data-close>Cancel</button></div>`);
+      d.addEventListener('click', (ev) => {
+        if (ev.target.closest('[data-close]')) return d.close();
+        const x = ev.target.closest('[data-x]')?.dataset.x;
+        if (!x) return;
+        const p = new URLSearchParams();
+        if (x === 'page') p.set('ids', data.rows.map((m) => m.id).join(','));
+        else { p.set('s', filter); if (term()) p.set('q', term()); }
+        d.close();
+        location.href = `/api/export.xlsx?${p}`;
+      });
+    }
   });
 }
 
@@ -980,7 +1067,7 @@ async function viewAdminEdit(id) {
   if (isNew && !admin) return go('/admin');
   let m = { status: 'ACTIVE', consent: CONSENT_YES };
   if (!isNew) {
-    app.innerHTML = '<div class="spin"></div>';
+    app.innerHTML = skeleton('member');
     try { m = await api(`/api/members/${id}`); } catch (e) { toast(e.message, true); return go('/admin'); }
   }
   const back = sessionStorage.getItem('adminList') || '/admin';
@@ -1006,7 +1093,7 @@ async function viewAdminEdit(id) {
           ${admin ? `<div class="sticky-save"><button class="btn block" type="submit">${isNew ? 'Create member' : 'Save changes'}</button></div>` : ''}
         </form>
         ${admin && !isNew ? `<section class="card" id="mreqs" hidden><h2>${ic('edit')} Change requests <small>Submitted by the member</small></h2><div id="mreqbody"></div></section>` : ''}
-        ${admin && !isNew ? `<details class="card history" id="history"><summary><b>Record history</b> <small>Who viewed or changed this record</small></summary><div id="histbody"><div class="spin"></div></div></details>
+        ${admin && !isNew ? `<details class="card history" id="history"><summary><b>Record history</b> <small>Who viewed or changed this record</small></summary><div id="histbody">${skeleton('lines', 3)}</div></details>
         <details class="danger"><summary>Danger zone · លុបសមាជិក</summary>
           <p>Deleting removes this member, their login and uploaded files permanently. To confirm, type <b>${esc(m.member_no || m.email)}</b> below.</p>
           <div class="actions"><input id="delconfirm" autocomplete="off" style="flex:1;min-width:160px"><button class="btn danger" id="del" disabled>Delete permanently</button></div>
@@ -1014,14 +1101,27 @@ async function viewAdminEdit(id) {
       </div>
     </div>`;
   tickClocks();
-  $('#history')?.addEventListener('toggle', async (ev) => {
+  // Record history: requested only when opened, 30 entries at a time.
+  let histLast = null;
+  const loadHistory = async () => {
+    const more = $('#histmore');
+    if (more) more.disabled = true;
+    try {
+      const rows = await api(`/api/members/${id}/audit?limit=30${histLast ? `&before=${histLast}` : ''}`);
+      const html = rows.map(auditRow).join('');
+      if (!histLast) $('#histbody').innerHTML = rows.length ? `<div class="audit">${html}</div>` : '<p class="hint">No entries yet</p>';
+      else $('#histbody .audit').insertAdjacentHTML('beforeend', html);
+      if (rows.length) histLast = rows[rows.length - 1].id;
+      $('#histmore')?.remove();
+      if (rows.length === 30) $('#histbody').insertAdjacentHTML('beforeend', `<button class="btn sm light" type="button" id="histmore" style="margin-top:8px">${ic('next')} Load older entries</button>`);
+    } catch (e) { $('#histbody').textContent = e.message; }
+  };
+  $('#history')?.addEventListener('toggle', (ev) => {
     if (!ev.target.open || ev.target.dataset.loaded) return;
     ev.target.dataset.loaded = '1';
-    try {
-      const rows = await api(`/api/members/${id}/audit`);
-      $('#histbody').innerHTML = rows.length ? `<div class="audit">${rows.map(auditRow).join('')}</div>` : '<p class="hint">No entries yet</p>';
-    } catch (e) { $('#histbody').textContent = e.message; }
+    loadHistory();
   });
+  $('#history')?.addEventListener('click', (ev) => { if (ev.target.closest('#histmore')) loadHistory(); });
   const reload = () => viewAdminEdit(id);
   if (admin && !isNew) {
     api(`/api/change-requests?member=${id}&status=all`).then((rows) => {
@@ -1169,12 +1269,18 @@ async function loadSettingsForm(el) {
   });
 }
 
+const AUDIT_PAGE = 50;
+const AUDIT_RANGES = [
+  { h: 1, label: 'Last hour' }, { h: 24, label: 'Last 24 hours' }, { h: 168, label: 'Last 7 days' },
+  { h: 720, label: 'Last 30 days' }, { h: 0, label: 'All (2 years)' },
+];
+
 async function viewSystem() {
   app.className = '';
   app.innerHTML = `${header('Admin', 'គ្រប់គ្រងប្រព័ន្ធ · System')}
     <section class="card"><h2>អ្នកប្រើប្រព័ន្ធ <small>System users</small></h2>
       <p class="hint" style="text-align:left;margin-top:0">Admins have full access. Moderators can review members and manage events.</p>
-      <div id="users"><div class="spin"></div></div>
+      <div id="users">${skeleton('lines', 3)}</div>
     </section>
     <form class="card" id="nu" autocomplete="off">
       <h2>បន្ថែមអ្នកប្រើ <small>Add system user</small></h2>
@@ -1186,9 +1292,9 @@ async function viewSystem() {
       <button class="btn block" type="submit">Create user</button>
       <p class="hint" style="text-align:left">To give a <b>member</b> moderator/admin rights, open them in Members › Account › Role.</p>
     </form>
-    <section class="card" id="privreq"><h2>សំណើឯកជនភាព <small>Privacy requests</small></h2><div id="reqbody"><div class="spin"></div></div></section>
-    <section class="card" id="chgreq"><h2>សំណើកែប្រែព័ត៌មាន <small>Change requests from members</small></h2><div id="chgbody"><div class="spin"></div></div></section>
-    <form class="card" id="settings" autocomplete="off"><h2>ការកំណត់ <small>Settings</small></h2><div class="spin"></div></form>
+    <section class="card" id="privreq"><h2>សំណើឯកជនភាព <small>Privacy requests</small></h2><div id="reqbody">${skeleton('lines', 1)}</div></section>
+    <section class="card" id="chgreq"><h2>សំណើកែប្រែព័ត៌មាន <small>Change requests from members</small></h2><div id="chgbody">${skeleton('lines', 2)}</div></section>
+    <form class="card" id="settings" autocomplete="off"><h2>ការកំណត់ <small>Settings</small></h2>${skeleton('lines', 4)}</form>
     <section class="card"><h2>បម្រុងទុក និង ស្ដារ <small>Backup &amp; restore</small></h2>
       <p style="font-size:14px;margin-top:0">The backup contains the whole database (members, logins, events, association info) and all uploaded photos/files.
         It contains personal data – <b>set a passphrase</b> so the file is encrypted, and store it safely.</p>
@@ -1201,10 +1307,15 @@ async function viewSystem() {
         <div class="actions"><input type="file" id="rfile" accept=".gz,.json,.aisarc-enc,application/gzip,application/octet-stream" style="flex:1;min-width:200px"><button class="btn danger" id="restore" disabled>Restore</button></div>
       </details>
     </section>
-    <section class="card"><h2>កំណត់ត្រាសកម្មភាព <small>Audit log – who did what with personal data</small></h2>
-      <div class="search" style="margin-bottom:8px">${ICON.search}<input id="aq" type="search" placeholder="Search action, user, member:12…" autocomplete="off"></div>
-      <div id="audit" class="audit"><div class="spin"></div></div>
-      <button class="btn sm light" type="button" id="amore" hidden>Load more</button>
+    <section class="card" id="auditcard"><h2>កំណត់ត្រាសកម្មភាព <small>Audit log – who did what with personal data</small></h2>
+      <div class="audit-tools">
+        <div class="search">${ICON.search}<input id="aq" type="search" placeholder="Search action, user, member:12…" autocomplete="off"></div>
+        <select id="arange" aria-label="Time range">${AUDIT_RANGES.map((r) => `<option value="${r.h}" ${r.h === 1 ? 'selected' : ''}>${esc(r.label)}</option>`).join('')}</select>
+      </div>
+      <p class="hint" id="ainfo" style="text-align:left;margin:0 0 8px"></p>
+      <div id="audit" class="audit">${skeleton('lines', 4)}</div>
+      <div class="actions"><button class="btn sm light" type="button" id="amore" hidden>${ic('next')} Load older entries</button>
+        <button class="btn sm light" type="button" id="awider" hidden>${ic('clock')} Show a longer period</button></div>
     </section>
     <a class="btn block light" href="#/association/edit">Edit association info</a>`;
 
@@ -1226,22 +1337,50 @@ async function viewSystem() {
   bindChangeDecisions($('#chgreq'), loadChanges);
   loadSettingsForm($('#settings'));
 
-  // Audit log with search and paging.
+  // Audit log: only the last hour by default (50 entries per request). The admin widens the period or loads
+  // older entries on demand, and nothing is requested until the section is scrolled into view.
   let lastId = null;
   let atimer;
+  let aseq = 0;
+  let shown = 0;
+  const range = () => AUDIT_RANGES.find((r) => r.h === Number($('#arange').value)) || AUDIT_RANGES[0];
   const loadAudit = async (append = false) => {
+    const my = ++aseq;
+    const q = $('#aq').value.trim();
+    if (!append) { lastId = null; shown = 0; $('#audit').innerHTML = skeleton('lines', 4); }
+    $('#amore').disabled = true;
     try {
-      const q = $('#aq').value.trim();
-      const rows = await api(`/api/audit?limit=50&q=${encodeURIComponent(q)}${append && lastId ? `&before=${lastId}` : ''}`);
+      const p = new URLSearchParams({ limit: AUDIT_PAGE, hours: range().h });
+      if (q) p.set('q', q);
+      if (append && lastId) p.set('before', lastId);
+      const rows = await api(`/api/audit?${p}`);
+      if (my !== aseq || !$('#audit')) return;
       const html = rows.map(auditRow).join('');
-      $('#audit').innerHTML = append ? $('#audit').innerHTML + html : (html || '<p class="hint">No entries</p>');
-      lastId = rows.length ? rows[rows.length - 1].id : lastId;
-      $('#amore').hidden = rows.length < 50;
-    } catch (e) { toast(e.message, true); }
+      if (append) $('#audit').insertAdjacentHTML('beforeend', html);
+      else $('#audit').innerHTML = html || `<p class="hint" style="text-align:left;margin:0">No activity ${esc(range().label.toLowerCase())}${q ? ' matching the search' : ''}.</p>`;
+      shown += rows.length;
+      if (rows.length) lastId = rows[rows.length - 1].id;
+      const more = rows.length === AUDIT_PAGE;
+      $('#amore').hidden = !more;
+      $('#amore').disabled = false;
+      $('#awider').hidden = more || range().h === 0;
+      $('#ainfo').textContent = `${shown}${more ? '+' : ''} entr${shown === 1 ? 'y' : 'ies'} · ${range().label}`;
+    } catch (e) { if (my === aseq) toast(e.message, true); }
   };
-  loadAudit();
-  $('#aq').addEventListener('input', () => { clearTimeout(atimer); atimer = setTimeout(() => { lastId = null; loadAudit(); }, 250); });
+  const io = new IntersectionObserver((entries) => {
+    if (!entries.some((en) => en.isIntersecting)) return;
+    io.disconnect();
+    loadAudit();
+  }, { rootMargin: '200px' });
+  io.observe($('#auditcard'));
+  $('#aq').addEventListener('input', () => { clearTimeout(atimer); atimer = setTimeout(() => loadAudit(), 300); });
+  $('#arange').addEventListener('change', () => loadAudit());
   $('#amore').addEventListener('click', () => loadAudit(true));
+  $('#awider').addEventListener('click', () => {
+    const i = AUDIT_RANGES.indexOf(range());
+    $('#arange').value = AUDIT_RANGES[Math.min(i + 1, AUDIT_RANGES.length - 1)].h;
+    loadAudit();
+  });
 
   $('#dl-backup').addEventListener('click', async () => {
     const passphrase = $('#bpass').value;
@@ -1376,7 +1515,7 @@ async function viewEvents() {
   app.className = '';
   app.innerHTML = `${header('Events', 'ព្រឹត្តិការណ៍')}
     ${isStaff() ? '<div class="actions" style="margin-bottom:12px"><a class="btn" href="#/events/new">+ New event</a></div>' : ''}
-    <div id="elist"><div class="spin"></div></div>`;
+    <div id="elist">${skeleton('events', 3)}</div>`;
   let pastOpen = false;
   const load = async () => {
     if (!$('#elist')) return clearInterval(livePoll);
@@ -1402,7 +1541,7 @@ async function viewEvents() {
 
 async function viewEvent(id) {
   app.className = '';
-  app.innerHTML = '<div class="spin"></div>';
+  app.innerHTML = skeleton('page', 2);
   const render = (e) => {
     const canJoin = state.user.member_id && e.phase === 'upcoming';
     const member = state.member;
@@ -1500,6 +1639,7 @@ async function viewEventEdit(id) {
   let e = { title: '', location: '', map_url: '', description: '', seats: 0, price: 0, close_days: 0, starts_at: '', ends_at: '' };
   let currency = 'USD';
   if (!isNew) {
+    app.innerHTML = skeleton('page', 2);
     try { e = await api(`/api/events/${id}`); currency = e.currency || currency; } catch (err) { toast(err.message, true); return go('/events'); }
   } else {
     try { currency = (await api('/api/association')).currency || currency; } catch { /* default */ }

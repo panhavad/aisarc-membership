@@ -1,6 +1,6 @@
 # AISARC Membership Portal · ប្រព័ន្ធគ្រប់គ្រងសមាជិក
 
-**Version 1.8.1** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
+**Version 1.8.2** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
 (សមាគម គិលានុបដ្ឋាកឯកទេសដាក់ថ្នាំសណ្តំ និង ប្រពោធនកម្មកម្ពុជា).
 
 <p>
@@ -68,7 +68,7 @@
 ### For admins · អ្នកគ្រប់គ្រង
 | Feature | Description |
 | --- | --- |
-| Member management | Search, filter by status / **Duplicate** / **Change requests** / level, add, edit every field, activate / deactivate. |
+| Member management | Search, filter by status / **Duplicate** / **Change requests** / level, add, edit every field, activate / deactivate. The list loads **one page at a time** (10 by default, or 20 / 50 per page). |
 | Possible duplicates | Records with the same phone/Telegram, email or name are flagged (also rows imported twice). Compare, delete the extra record, or mark **Not a duplicate**. |
 | Change requests | Approve or reject members' change requests (Admin tab, or on the member page). |
 | Member levels | Assign a level (leader, board member, accounting…); define levels and their card colours in **Settings**. |
@@ -76,17 +76,17 @@
 | Delete safely | Delete is hidden in a "Danger zone" and requires typing the membership no. |
 | Roles | Make any member a moderator or admin; create stand-alone admin / moderator accounts. |
 | Passwords | Generate temporary passwords (valid 72 h, must be changed at first sign-in). |
-| Excel export | **Export (N)** downloads exactly the members shown (current search + filter), or **Select** members and export only those. |
+| Excel export | **Export** → **Current page** (the members on screen) or **All matching** (every page of the current search + filter); or **Select** members (across pages) and export only those. |
 | Association info | Edit the association details, fee, validity period, bank account, payment QR and contacts. |
 | Backup & restore | Download one file with the whole database and uploaded files (optionally **encrypted with a passphrase**); restore it later. |
 | Privacy requests | Deletion requests from members, with a 30-day due date. |
-| Audit log | Who signed in, viewed, changed, exported, backed up or deleted personal data, and when. |
+| Audit log | Who signed in, viewed, changed, exported, backed up or deleted personal data, and when. Shows the **last hour** by default; choose a longer period or load older entries on demand. |
 | Events | Everything moderators can do. |
 
 ### Platform
 - Mobile-first, responsive (phone → desktop), installable as a home-screen app (PWA manifest).
 - Khmer + English throughout; Kantumruy Pro font; consistent SVG line icons (no emoji).
-- Fast and light: no front-end build step or framework (~180 KB of front-end code, uncompressed), Node.js 24 with built-in SQLite.
+- Fast and light: lists are paged on the server, the audit log loads only recent entries when it scrolls into view, and skeleton placeholders show the page layout while data loads. No front-end build step or framework (~180 KB of front-end code, uncompressed), Node.js 24 with built-in SQLite.
 - Docker Compose deployment with **auto-update on `git push`**.
 - Version number shown on the login screen and at the bottom of every page.
 
@@ -111,6 +111,10 @@
 | <img src="docs/screenshots/18-pass-level.png" width="230"> | <img src="docs/screenshots/21-profile-locked.png" width="230"> | <img src="docs/screenshots/22-change-request.png" width="230"> |
 | **Admin – change requests** | **Admin – settings & levels** | **Possible duplicate** |
 | <img src="docs/screenshots/26-change-requests.png" width="230"> | <img src="docs/screenshots/27-settings.png" width="230"> | <img src="docs/screenshots/25-duplicate-notice.png" width="230"> |
+| **Members – pages (10 / 20 / 50)** | **Export: current page or all** | **Audit log – last hour first** |
+| <img src="docs/screenshots/31-members-pager.png" width="230"> | <img src="docs/screenshots/32-export-dialog.png" width="230"> | <img src="docs/screenshots/33-audit-log.png" width="230"> |
+| **Loading placeholders (no spinner)** | | |
+| <img src="docs/screenshots/30-skeleton-loading.png" width="230"> | | |
 
 **Desktop – admin members (Duplicate / Change requests / level filters, export follows the filter)**
 
@@ -337,7 +341,8 @@ sequenceDiagram
 | Make moderator / admin | Member page → **Account → Role**. |
 | Reset password | Member page → **Reset password** → share the temporary password privately (valid 72 h). |
 | Delete | Member page → bottom **Danger zone** → type the membership no. → **Delete permanently**. |
-| Export to Excel | Search and/or pick a filter → **Export (N)** downloads exactly those N members. Or **Select** → tap members (or **Select all**) → **Export selected**. |
+| Browse pages | Bottom of the list: **Show 10 / 20 / 50 per page** and the previous / next arrows. The choice is remembered on this device. |
+| Export to Excel | Search and/or pick a filter → **Export** → **Current page** or **All matching** (all pages). Or **Select** → tap members (or **Select page**, also across pages) → **Export selected**. |
 
 ### Admin tab · គ្រប់គ្រងប្រព័ន្ធ
 | Task | How |
@@ -353,7 +358,7 @@ sequenceDiagram
 | Annual renewal | **Settings → Annual renewal**: tick it and choose the month/day. From then on validity runs until the next renewal date; members approved within 60 days before it stay valid until the following year. |
 | Auto-inactive | **Settings → Automatically set INACTIVE** after N years PENDING (checked daily; the reason "not renewed" is shown and logged). |
 | Member levels | **Settings → Member levels**: Khmer + English name, tick the box to give the card its own colour, **+ Add level**, the close (X) icon to remove (members on a removed level go back to *Member*). Assign levels on the member page. |
-| Audit log | Admin tab → **Audit log**: search by action, user or `member:<id>`. A member's page shows their **Record history**. Review it monthly. |
+| Audit log | Admin tab → **Audit log**: shows the **last hour**; pick *Last 24 hours / 7 days / 30 days / All* or tap **Load older entries** / **Show a longer period**. Search by action, user or `member:<id>`. A member's page shows their **Record history** (30 entries at a time). Review it monthly. |
 | Association info | **Edit association info**: name, about, fee, validity (months), bank, account, QR, contacts. |
 
 > You can't delete or demote yourself or the last admin.
@@ -515,7 +520,8 @@ The version is set in `package.json` (`npm version minor`) and shown on the logi
 
 | Version | Changes |
 | --- | --- |
-| **1.8.1** | No emoji anywhere: every symbol in the interface is replaced by a consistent SVG line icon (check, close, edit, alert, lock, file, download, upload, payment, workplace, training…); the test report uses plain Pass / Fail; automated check C-05 keeps emoji out of the UI and documentation. |
+| **1.8.2** | Faster admin screens: the members list is paged on the server (10 by default, 20 / 50 selectable, remembered per device) with chip counts from the server; export offers **current page** or **all matching**; the audit log shows the last hour by default, loads only when scrolled into view, and offers longer periods / older entries on demand; record history loads 30 entries at a time; skeleton placeholders replace every loading spinner. |
+| 1.8.1 | No emoji anywhere: every symbol in the interface is replaced by a consistent SVG line icon (check, close, edit, alert, lock, file, download, upload, payment, workplace, training…); the test report uses plain Pass / Fail; automated check C-05 keeps emoji out of the UI and documentation. |
 | 1.8.0 | Events: price, registration closes N days before the start, member payment-proof upload, joiner list with gender / workplace / technical training / bill, joiner export to Excel. Admin settings: profile edit window with locked profiles and per-section change requests, yearly renewal date (automatic PENDING), automatic INACTIVE after N years PENDING, member levels with card colours. Possible-duplicate detection (also on import) with Duplicate filter and "Not a duplicate". Members export follows the current search and filter. Card in the logo blue with technical training. Privacy notice 2026-11-13. |
 | 1.7.0 | Personal-data protection: bilingual privacy notice (required at registration, re-accept on change), consent records, download-my-data, deletion requests, audit log and record history, event participant privacy, self-hosted fonts, encrypted backups, automatic retention (12-month drafts, 2-year audit, 90-day server backups), automated test suite and test report, data-protection document. |
 | 1.6.0 | Profile completion and submit for review (DRAFT status), bilingual system tour with **?** button, event sections (now / upcoming / past), Google Maps links, version number in the app, README manual and flowcharts. |

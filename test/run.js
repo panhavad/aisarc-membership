@@ -305,6 +305,18 @@ try {
     eq((await app1.c.get('/api/association')).json.account_no, '000 111 222', 'member read');
     eq((await A.post('/api/association/qr', { dataUrl: PNG_URL })).status, 200, 'QR upload');
   });
+  await t('A-07', 'Members list is paged on the server (10 by default; 20 / 50) with chip counts and slim rows', async () => {
+    for (let i = 0; i < 12; i++) await A.post('/api/members', { name_kh: `ទំព័រ ${i}`, name_en: `PAGER PERSON ${i}`, email: `pager${i}@example.com`, status: 'ACTIVE' });
+    const p1 = (await A.get('/api/members?q=pager%20person&s=ALL&page=1&size=10')).json;
+    eq(p1.rows.length, 10, 'first page'); eq(p1.total, 12, 'total'); eq(p1.pages, 2, 'pages'); eq(p1.counts.ALL, 12, 'chip count');
+    const p2 = (await A.get('/api/members?q=pager%20person&s=ALL&page=2&size=10')).json;
+    eq(p2.rows.length, 2, 'second page'); assert(!p2.rows.some((r) => p1.rows.some((x) => x.id === r.id)), 'no overlap');
+    eq((await A.get('/api/members?q=pager%20person&page=1&size=20')).json.rows.length, 12, '20 per page');
+    eq((await A.get('/api/members?q=pager%20person&page=1&size=9999')).json.size, 10, 'unknown size falls back to 10');
+    eq((await A.get('/api/members?q=pager%20person&page=99&size=10')).json.page, 2, 'page clamped');
+    assert(!('address' in p1.rows[0]) && !('cnc_reg_no' in p1.rows[0]), 'list rows carry only list fields');
+    eq((await MOD.get('/api/members?page=1&size=10&s=REVIEW')).status, 200, 'moderator paging');
+  });
 
   // ------------------------------------------------------------ events
   section('Events');
@@ -540,6 +552,20 @@ try {
   });
   await t('D-06', 'Only admins can read the audit log', async () => {
     eq((await MOD.get('/api/audit')).status, 403, 'moderator'); eq((await mem2.c.get('/api/audit')).status, 403, 'member');
+  });
+  await t('D-06b', 'Audit log returns only the last hour by default; older entries only when the admin asks', async () => {
+    const d = db();
+    d.prepare("INSERT INTO audit (at, action, actor) VALUES (?, 'window.test', 'tester')").run(iso(0, -3));
+    d.close();
+    const has = async (u) => (await A.get(u)).json.some((x) => x.action === 'window.test');
+    eq(await has('/api/audit?q=window.test'), false, 'default (1 hour) excludes 3-hour-old entry');
+    eq(await has('/api/audit?q=window.test&hours=24'), true, 'last 24 hours includes it');
+    eq(await has('/api/audit?q=window.test&hours=0'), true, 'all');
+    eq((await A.get('/api/audit?hours=0&limit=5')).json.length <= 5, true, 'limit respected');
+    const hist = (await A.get(`/api/members/${mem2.m.id}/audit?limit=2`)).json;
+    eq(hist.length, 2, 'record history paged');
+    const older = (await A.get(`/api/members/${mem2.m.id}/audit?limit=2&before=${hist[1].id}`)).json;
+    assert(older.every((x) => x.id < hist[1].id), 'older page');
   });
   await t('D-07', 'Imported members: consent recorded from the Google Form, no default password', async () => {
     const file = path.join(tmp, 'import.xlsx');

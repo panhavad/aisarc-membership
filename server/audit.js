@@ -27,14 +27,19 @@ export function audit(req, action, target = '', detail = '') {
   }
 }
 
-export function listAudit({ q = '', limit = 200, before = null } = {}) {
+// Newest first. `since` limits the time window (ISO date) so the admin screen never pulls the whole log.
+export function listAudit({ q = '', limit = 50, before = null, since = null } = {}) {
   const like = `%${String(q).toLowerCase()}%`;
   return db.prepare(`SELECT * FROM audit WHERE (? = '%%' OR lower(action || ' ' || ifnull(actor,'') || ' ' || ifnull(target,'') || ' ' || ifnull(detail,'')) LIKE ?)
-    AND (? IS NULL OR id < ?) ORDER BY id DESC LIMIT ?`).all(like, like, before, before, Math.min(500, Number(limit) || 200));
+    AND (? IS NULL OR id < ?) AND (? IS NULL OR at >= ?) ORDER BY id DESC LIMIT ?`)
+    .all(like, like, before, before, since, since, Math.min(500, Math.max(1, Number(limit) || 50)));
 }
 
-export function memberAudit(memberId) {
-  return db.prepare("SELECT at, actor, action, detail FROM audit WHERE target = ? ORDER BY id DESC LIMIT 500").all(`member:${memberId}`);
+// limit = null: everything (used for the member's own data download).
+export function memberAudit(memberId, { before = null, limit = 30 } = {}) {
+  const max = limit === null ? -1 : Math.min(200, Math.max(1, Number(limit) || 30));
+  return db.prepare('SELECT id, at, actor, action, detail FROM audit WHERE target = ? AND (? IS NULL OR id < ?) ORDER BY id DESC LIMIT ?')
+    .all(`member:${memberId}`, before, before, max);
 }
 
 // Retention: audit entries are kept for 2 years.

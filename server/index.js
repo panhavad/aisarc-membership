@@ -466,7 +466,7 @@ app.get('/api/me/export', requireUser, (req, res) => {
   const member = req.user.member_id ? getMember(req.user.member_id) : null;
   const events = req.user.member_id ? db.prepare(`SELECT e.title, e.location, e.starts_at, p.joined_at FROM event_participants p
     JOIN events e ON e.id = p.event_id WHERE p.member_id = ? ORDER BY e.starts_at`).all(req.user.member_id) : [];
-  const history = req.user.member_id ? memberAudit(req.user.member_id) : [];
+  const history = req.user.member_id ? memberAudit(req.user.member_id, { limit: null }) : [];
   audit(req, 'data.export_own', req.user.member_id ? `member:${req.user.member_id}` : `user:${req.user.id}`);
   res.set({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': 'attachment; filename="my-aisarc-data.json"' });
   res.send(JSON.stringify({
@@ -643,7 +643,31 @@ function applyFilter(rows, s) {
   return rows.filter((m) => m.status === s);
 }
 
-app.get('/api/members', requireStaff, (req, res) => res.json(applyFilter(membersWithFlags(req.query.q), req.query.s)));
+// Without page/size: the full matching list (API clients, scripts). The Members screen always asks for one page:
+// { rows, total, page, pages, size, counts } with only the fields the list shows.
+const PAGE_SIZES = [10, 20, 50, 100];
+const listRow = (m) => ({
+  id: m.id, member_no: m.member_no, name_kh: m.name_kh || '', name_en: m.name_en || '', phone: m.phone || '', email: m.email || '',
+  workplace: m.workplace || '', photo: m.photo || '', status: m.status, level: m.level,
+  dups: m.dups.map((d) => ({ id: d.id, member_no: d.member_no, name_en: d.name_en })), pending_changes: m.pending_changes,
+});
+app.get('/api/members', requireStaff, (req, res) => {
+  const all = membersWithFlags(req.query.q);
+  const rows = applyFilter(all, req.query.s);
+  if (req.query.page === undefined && req.query.size === undefined) return res.json(rows);
+  const size = PAGE_SIZES.includes(Number(req.query.size)) ? Number(req.query.size) : 10;
+  const pages = Math.max(1, Math.ceil(rows.length / size));
+  const page = Math.min(pages, Math.max(1, parseInt(req.query.page, 10) || 1));
+  // Numbers for the filter chips (within the current search).
+  const counts = { ALL: all.length, DUP: 0, CHG: 0 };
+  for (const m of all) {
+    counts[m.status] = (counts[m.status] || 0) + 1;
+    counts[`L:${m.level}`] = (counts[`L:${m.level}`] || 0) + 1;
+    if (m.dups.length) counts.DUP++;
+    if (m.pending_changes) counts.CHG++;
+  }
+  res.json({ rows: rows.slice((page - 1) * size, page * size).map(listRow), total: rows.length, page, pages, size, counts });
+});
 
 app.get('/api/members/:id', requireStaff, (req, res) => {
   const m = membersWithFlags().find((x) => x.id === Number(req.params.id));
@@ -745,7 +769,9 @@ app.put('/api/settings', requireAdmin, (req, res) => {
 const SETTINGS_KEYS = { edit_days: 1, renewal_enabled: 1, renewal_date: 1, inactive_enabled: 1, inactive_years: 1, levels: 1 };
 
 // History of everything done to one member record (admins only).
-app.get('/api/members/:id/audit', requireAdmin, (req, res) => res.json(memberAudit(Number(req.params.id))));
+app.get('/api/members/:id/audit', requireAdmin, (req, res) => res.json(memberAudit(Number(req.params.id), {
+  before: req.query.before ? Number(req.query.before) : null, limit: req.query.limit,
+})));
 
 app.post('/api/members/:id/review', requireStaff, (req, res) => {
   const id = Number(req.params.id);
@@ -994,8 +1020,13 @@ app.post('/api/restore', requireAdmin, express.raw({ type: 'application/octet-st
 });
 
 // ---------- admin: audit log & privacy dashboard ----------
+// Default window is the last hour; the admin can widen it (hours=24, 168, 720) or choose everything (hours=0).
+const AUDIT_WINDOWS = [1, 24, 168, 720, 0];
 app.get('/api/audit', requireAdmin, (req, res) => {
-  res.json(listAudit({ q: req.query.q, before: req.query.before ? Number(req.query.before) : null, limit: req.query.limit }));
+  const hours = AUDIT_WINDOWS.includes(Number(req.query.hours)) && req.query.hours !== '' ? Number(req.query.hours) : 1;
+  const since = hours ? new Date(Date.now() - hours * 3600e3).toISOString() : null;
+  const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 200) : '';
+  res.json(listAudit({ q, since, before: req.query.before ? Number(req.query.before) : null, limit: req.query.limit }));
 });
 
 app.get('/api/privacy/requests', requireAdmin, (req, res) => {
