@@ -1797,7 +1797,7 @@ async function viewEventEdit(id) {
       <label class="field"><span class="lbl">ទីកន្លែង<small>Location (a Google Maps search link is created automatically)</small></span><input name="location" value="${esc(e.location)}"></label>
       <label class="field"><span class="lbl">តំណ Google Maps<small>Optional exact map link – in Google Maps tap Share › Copy link (https://maps.app.goo.gl/…)</small></span>
         <input name="map_url" type="url" inputmode="url" placeholder="https://maps.app.goo.gl/..." value="${esc(e.map_url || '')}"></label>
-      <div class="actions" style="margin:-6px 0 16px"><button type="button" class="btn sm light" id="testmap">${ICON.pin} Test map link</button></div>
+      <div class="actions" style="margin:0 0 12px"><button type="button" class="btn sm light" id="testmap">${ICON.pin} Test map link</button></div>
       <div class="grid2">
         <label class="field"><span class="lbl">ចាប់ផ្ដើម *<small>Starts (date &amp; time)</small></span><input type="datetime-local" name="starts_at" required value="${esc(toLocalInput(e.starts_at))}"></label>
         <label class="field"><span class="lbl">បញ្ចប់<small>Ends (optional – otherwise 3 hours)</small></span><input type="datetime-local" name="ends_at" value="${esc(toLocalInput(e.ends_at))}"></label>

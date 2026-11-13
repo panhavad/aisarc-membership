@@ -557,4 +557,10 @@ textarea { min-height: 58px; }
 .bi { display: inline-block; max-width: 100%; }
 /* field labels: Khmer and English on one line when they fit, otherwise English on its own line */
 .field .lbl { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; }
-.field .lbl small::before { content: none; }
+.field .lbl small::before { content: none; }/* space between a list / content block and the buttons that follow it */
+.audit + .actions, .ulist + .actions, .plist + .actions, .choose-list + .actions, #histbody .btn, .card > div + .actions, .card > section + .actions, .card > ul + .actions { margin-top: 12px; }
+form + .card, form + details.card { margin-top: 14px; }
+/* headings: the subtitle drops below the title instead of squeezing it */
+.card h2 { flex-wrap: wrap; column-gap: 8px; row-gap: 2px; }
+.card h2 small { flex: 1 1 auto; min-width: 0; }
+.audit-tools select { height: 44px; }

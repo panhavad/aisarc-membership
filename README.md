@@ -1,6 +1,6 @@
 # AISARC Membership Portal · ប្រព័ន្ធគ្រប់គ្រងសមាជិក
 
-**Version 1.9.5** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
+**Version 1.9.6** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
 (សមាគម គិលានុបដ្ឋាកឯកទេសដាក់ថ្នាំសណ្តំ និង ប្រពោធនកម្មកម្ពុជា).
 
 <p>
@@ -529,7 +529,8 @@ The version is set in `package.json` (`npm version minor`) and shown on the logi
 
 | Version | Changes |
 | --- | --- |
-| **1.9.5** | Bilingual text is never cut in the middle: when English and Khmer do not fit on one line, the second language moves to its own line (labels, settings, notices, tour). |
+| **1.9.6** | Spacing fixes: buttons no longer touch the list above them (audit log, record history), the member page's change-request card and the "Test map link" button have proper space. |
+| 1.9.5 | Bilingual text is never cut in the middle: when English and Khmer do not fit on one line, the second language moves to its own line (labels, settings, notices, tour). |
 | 1.9.4 | Compact form fields: smaller inputs and icons, Khmer and English label on one line, tighter spacing – about a third more fields fit on a phone screen (text stays 16 px on phones to avoid iPhone zoom). |
 | 1.9.3 | Admin tab and Settings show English first (headings, level names, change-request sections), Khmer second. |
 | 1.9.2 | One place for an admin's own account: the separate "My account" page is removed for admins; their **(you)** row in Admin › System users changes their own password (key), sets their sign-in email (envelope, stays signed in on this device) and switches account. Moderators without a member profile keep the Account tab. |
