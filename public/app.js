@@ -46,6 +46,7 @@ const ICON = {
   prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
   mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg>',
   phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
+  telegram: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 4 2.5 11.3c-.7.3-.7 1.3 0 1.5l4.8 1.6 1.8 5.6c.2.6 1 .8 1.4.3l2.7-2.9 4.9 3.6c.5.4 1.3.1 1.4-.5L22.5 5c.2-.7-.4-1.3-1-1Z"/><path d="m7.3 14.4 10.7-7.6-8 8.5"/></svg>',
   globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.5 5.7 3.5 9s-1 6.3-3.5 9c-2.5-2.7-3.5-5.7-3.5-9s1-6.3 3.5-9Z"/></svg>',
   shirt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3 4 5.5 2.5 10l3.5 1.5V21h12v-9.5l3.5-1.5L20 5.5 15 3c-.5 1.5-1.6 2.5-3 2.5S9.5 4.5 9 3Z"/></svg>',
   briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 12.5h18"/></svg>',
@@ -64,7 +65,7 @@ const ic = (name) => ICON[name].replace('<svg ', '<svg class="ic" aria-hidden="t
 // Every form field shows a leading icon, chosen by the field's name (or its type), so fields are easy to tell apart.
 const FIELD_ICON = {
   name_kh: 'user', name_en: 'user', username: 'user', gender: 'user', age_group: 'users', account_name: 'user',
-  email: 'mail', contact_email: 'mail', phone: 'phone', telegram: 'phone',
+  email: 'mail', contact_email: 'mail', phone: 'phone', telegram: 'telegram',
   password: 'lock', confirm: 'lock', current: 'lock', bpass: 'lock', rpass: 'lock',
   dob: 'cal', cnc_reg_date: 'cal', joined_at: 'cal', expires_at: 'cal', starts_at: 'cal', ends_at: 'cal', mm: 'cal', dd: 'cal', term_months: 'cal', edit_days: 'cal', inactive_years: 'cal',
   birthplace: 'pin', address: 'pin', location: 'pin', map_url: 'link', nationality: 'flag', tshirt: 'shirt',

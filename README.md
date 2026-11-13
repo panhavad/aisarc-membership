@@ -1,6 +1,6 @@
 # AISARC Membership Portal · ប្រព័ន្ធគ្រប់គ្រងសមាជិក
 
-**Version 1.9.8** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
+**Version 1.9.9** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
 (សមាគម គិលានុបដ្ឋាកឯកទេសដាក់ថ្នាំសណ្តំ និង ប្រពោធនកម្មកម្ពុជា).
 
 <p>
@@ -529,7 +529,8 @@ The version is set in `package.json` (`npm version minor`) and shown on the logi
 
 | Version | Changes |
 | --- | --- |
-| **1.9.8** | Pass card logo: clean version (`public/img/logo-card.png`) – perfectly round, crisp outer ring, no blurry edge – with an even white outline. |
+| **1.9.9** | Telegram fields use the Telegram (paper plane) icon. |
+| 1.9.8 | Pass card logo: clean version (`public/img/logo-card.png`) – perfectly round, crisp outer ring, no blurry edge – with an even white outline. |
 | 1.9.7 | Pass card: Birthday and Member since on one full-width row under the photo (dates never wrap; Member since lines up with the photo), content centred on the card. |
 | 1.9.6 | Spacing fixes: buttons no longer touch the list above them (audit log, record history), the member page's change-request card and the "Test map link" button have proper space. |
 | 1.9.5 | Bilingual text is never cut in the middle: when English and Khmer do not fit on one line, the second language moves to its own line (labels, settings, notices, tour). |
