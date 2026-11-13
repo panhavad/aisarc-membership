@@ -27,7 +27,25 @@ const ICON = {
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12Z"/><circle cx="12" cy="9" r="2.5"/></svg>',
   clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   seat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.5-5 6.5-5s5.5 1.5 6.5 5M17 8h4M19 6v4"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg>',
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 2.5 20h19L12 3.5Z"/><path d="M12 10v4.5M12 17.5v.01"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5v-3a4 4 0 0 1 8 0v3"/></svg>',
+  file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
+  clip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m20 11.5-8 8a5 5 0 0 1-7-7l8.5-8.5a3.5 3.5 0 0 1 5 5L10 17.5a2 2 0 0 1-3-3l7.5-7.5"/></svg>',
+  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>',
+  upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V9M7 13.5l5-5 5 5M5 4h14"/></svg>',
+  arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  hourglass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10M7 21h10M8 3v3.5c0 2 4 3.5 4 5.5s-4 3.5-4 5.5V21M16 3v3.5c0 2-4 3.5-4 5.5s4 3.5 4 5.5V21"/></svg>',
+  cash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9.5v5M18 9.5v5"/></svg>',
+  building: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M2.5 21h19M10 21v-4h4v4M12 7v4M10 9h4"/></svg>',
+  cap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 9 10-5 10 5-10 5L2 9Z"/><path d="M6 11v5c2 2 10 2 12 0v-5M22 9v6"/></svg>',
+  star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8L12 3.5Z"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>',
 };
+// Inline icon that sits in a line of text (no emoji anywhere in the UI).
+const ic = (name) => ICON[name].replace('<svg ', '<svg class="ic" aria-hidden="true" ');
 
 // ---------- helpers ----------
 async function api(url, opts = {}) {
@@ -47,7 +65,8 @@ async function api(url, opts = {}) {
 let toastTimer;
 function toast(msg, error = false) {
   const t = $('#toast');
-  t.textContent = msg;
+  t.innerHTML = `${ic(error ? 'alert' : 'check')}<span></span>`;
+  t.querySelector('span').textContent = msg;
   t.className = `show${error ? ' error' : ''}`;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (t.className = ''), 2800);
@@ -251,7 +270,7 @@ function bindSubmit(root) {
     b.disabled = true;
     try {
       state.member = (await api('/api/me/submit', { body: {} })).member;
-      toast('Submitted for review ✓');
+      toast('Submitted for review');
       route();
     } catch (e) { toast(e.message, true); b.disabled = false; }
   }));
@@ -284,14 +303,14 @@ function fieldHtml(f, m, role, need = null, opts = {}) {
   const dis = editable ? '' : 'disabled';
   const req = f.required || need?.required.has(f.key);
   const miss = need?.missing.has(f.key) ? ' miss' : '';
-  const lbl = `<span class="lbl">${esc(f.kh)}${req ? ' <b class="req">*</b>' : ''}${editable || role === 'moderator' ? '' : ' <span class="lock">🔒</span>'}<small>${esc(f.en)}</small></span>`;
+  const lbl = `<span class="lbl">${esc(f.kh)}${req ? ' <b class="req">*</b>' : ''}${editable || role === 'moderator' ? '' : ` <span class="lock" title="Managed by the admin">${ic('lock')}</span>`}<small>${esc(f.en)}</small></span>`;
   const name = `name="${f.key}" id="f_${f.key}"`;
   let input;
   if (f.type === 'photo' || f.type === 'file') {
     const url = fileUrl(v);
     const thumb = f.type === 'photo'
       ? (url ? `<img src="${esc(url)}" alt="" referrerpolicy="no-referrer" data-rm>` : 'No photo')
-      : (v ? '📄' : 'None');
+      : (v ? ic('file') : 'None');
     input = `<div class="upload"><div class="thumb">${thumb}</div><div class="actions">
       ${editable ? `<label class="btn sm light">Upload<input type="file" ${opts.reqMode ? 'data-req-upload' : 'data-upload'}="${f.key}" accept="${f.accept || 'image/*'}"></label>` : ''}
       ${fileLink(v) ? `<a class="btn sm light" href="${esc(fileLink(v))}" target="_blank" rel="noopener noreferrer">View</a>` : ''}</div></div>`;
@@ -348,7 +367,7 @@ function bindUploads(root, memberId, onDone) {
       toast('Uploading…');
       const dataUrl = await readFile(file);
       const r = await api('/api/upload', { body: { field: inp.dataset.upload, dataUrl, memberId } });
-      toast('Uploaded ✓');
+      toast('Uploaded');
       onDone(r.member);
     } catch (e) { toast(e.message, true); }
   }));
@@ -360,7 +379,7 @@ function viewProfile(showMissing = false) {
   const applicant = ['DRAFT', 'REJECTED'].includes(m.status);
   const need = applicant ? { required: new Set(SUBMIT_REQUIRED), missing: new Set(showMissing ? missingForReview(m) : []) } : null;
   const untilHint = !applicant && m.lock?.until
-    ? `<div class="notice grey"><p style="margin:0">✏️ You can edit your information until <b>${esc(fmtDate(m.lock.until))}</b>.
+    ? `<div class="notice grey"><p style="margin:0">${ic('edit')} You can edit your information until <b>${esc(fmtDate(m.lock.until))}</b>.
        After that it is locked and changes are sent to the admin for approval. · អ្នកអាចកែប្រែព័ត៌មានបានរហូតដល់ ${esc(fmtDate(m.lock.until))}។</p></div>` : '';
   app.className = '';
   app.innerHTML = `${header('My Profile', 'ព័ត៌មានផ្ទាល់ខ្លួន · Edit your information')}
@@ -436,7 +455,7 @@ function viewProfile(showMissing = false) {
     try {
       const before = m.status;
       const mm = await save();
-      if (mm) { toast('Saved ✓'); if (mm.status !== before) viewProfile(); }
+      if (mm) { toast('Saved'); if (mm.status !== before) viewProfile(); }
     } catch (err) { toast(err.message, true); }
     btn.disabled = false;
   });
@@ -455,7 +474,7 @@ function viewProfile(showMissing = false) {
       }
       if (!confirm('Submit your profile for review?\nដាក់ស្នើព័ត៌មានរបស់អ្នកដើម្បីពិនិត្យ?')) return (btn.disabled = false);
       state.member = (await api('/api/me/submit', { body: {} })).member;
-      toast('Submitted for review ✓ · បានដាក់ស្នើ');
+      toast('Submitted for review · បានដាក់ស្នើ');
       go('/pass');
     } catch (err) { toast(err.message, true); btn.disabled = false; }
   });
@@ -466,12 +485,12 @@ const REQ_SECTIONS = ['personal', 'contact', 'work', 'reg'];
 const fieldLabel = (k) => { const f = FIELDS.find((x) => x.key === k); return f ? `${f.kh} · ${f.en}` : k; };
 const showVal = (k, v) => {
   if (v === '' || v == null) return '—';
-  if (String(v).startsWith('file:')) return `<a href="${esc(fileUrl(v))}" target="_blank" rel="noopener noreferrer">📎 file</a>`;
+  if (String(v).startsWith('file:')) return `<a href="${esc(fileUrl(v))}" target="_blank" rel="noopener noreferrer">${ic('clip')} file</a>`;
   const f = FIELDS.find((x) => x.key === k);
   return esc(f?.labels?.[v] || v) + (f?.unit ? ` ${esc(f.unit)}` : '');
 };
 function changeList(r) {
-  return `<ul class="chg">${Object.keys(r.changes).map((k) => `<li><b>${esc(fieldLabel(k))}</b>: <s>${showVal(k, r.previous[k])}</s> → ${showVal(k, r.changes[k])}</li>`).join('')}</ul>`;
+  return `<ul class="chg">${Object.keys(r.changes).map((k) => `<li><b>${esc(fieldLabel(k))}</b>: <s>${showVal(k, r.previous[k])}</s> ${ic('arrow')} ${showVal(k, r.changes[k])}</li>`).join('')}</ul>`;
 }
 
 async function viewProfileLocked(editing = null) {
@@ -488,15 +507,15 @@ async function viewProfileLocked(editing = null) {
     const isEditing = editing === s.id;
     const r = recent(s.id);
     const status = !r || isEditing ? ''
-      : r.status === 'pending' ? `<div class="notice orange req-box"><b>⏳ Change requested · កំពុងរង់ចាំការពិនិត្យ</b> <small>${esc(fmtDateTime(r.created_at))}</small>${changeList(r)}
+      : r.status === 'pending' ? `<div class="notice orange req-box"><b>${ic('hourglass')} Change requested · កំពុងរង់ចាំការពិនិត្យ</b> <small>${esc(fmtDateTime(r.created_at))}</small>${changeList(r)}
           ${r.note ? `<p class="pre">“${esc(r.note)}”</p>` : ''}<div class="actions"><button class="btn sm light" type="button" data-cancel-req="${r.id}">Cancel request</button></div></div>`
       : Date.now() - new Date(r.decided_at) < 30 * 864e5
         ? (r.status === 'approved'
-          ? `<div class="notice green req-box"><b>✓ Change approved</b> <small>${esc(fmtDateTime(r.decided_at))}</small></div>`
-          : `<div class="notice red req-box"><b>✕ Change rejected</b> <small>${esc(fmtDateTime(r.decided_at))}</small><p class="pre">${esc(r.reason || '')}</p></div>`)
+          ? `<div class="notice green req-box"><b>${ic('check')} Change approved</b> <small>${esc(fmtDateTime(r.decided_at))}</small></div>`
+          : `<div class="notice red req-box"><b>${ic('x')} Change rejected</b> <small>${esc(fmtDateTime(r.decided_at))}</small><p class="pre">${esc(r.reason || '')}</p></div>`)
         : '';
     const btn = REQ_SECTIONS.includes(s.id) && !isEditing && !editing
-      ? `<button class="btn sm light" type="button" data-req-section="${s.id}">✎ ${r?.status === 'pending' ? 'Update request' : 'Request change'} · ស្នើកែប្រែ</button>` : '';
+      ? `<button class="btn sm light" type="button" data-req-section="${s.id}">${ic('edit')} ${r?.status === 'pending' ? 'Update request' : 'Request change'} · ស្នើកែប្រែ</button>` : '';
     const opts = { edit: isEditing ? editSet(s.id) : new Set(s.id === 'membership' ? ['consent'] : []), reqMode: true };
     // Updating a pending request: start from the values already requested.
     const updating = isEditing && r?.status === 'pending';
@@ -516,7 +535,7 @@ async function viewProfileLocked(editing = null) {
   app.innerHTML = `${header('My Profile', 'ព័ត៌មានផ្ទាល់ខ្លួន · Information locked')}
     ${m.status === 'ACTIVE' ? '' : memberNotice(m)}
     ${privacyBanner()}
-    <div class="notice grey"><h3>🔒 ព័ត៌មានត្រូវបានចាក់សោ · Information locked</h3>
+    <div class="notice grey"><h3>${ic('lock')} ព័ត៌មានត្រូវបានចាក់សោ · Information locked</h3>
       <p>Your information was approved${days ? ` more than ${esc(days)} days ago` : ''} and can no longer be edited directly.
       To correct something, tap <b>Request change</b> on that section – an admin will review it.
       <br>ដើម្បីកែប្រែ សូមចុច «ស្នើកែប្រែ» នៅផ្នែកនោះ – អ្នកគ្រប់គ្រងនឹងពិនិត្យ។</p></div>
@@ -545,7 +564,7 @@ async function viewProfileLocked(editing = null) {
       const r = await api('/api/me/request-file', { body: { field: inp.dataset.reqUpload, dataUrl: await readFile(file) } });
       pendingFiles[inp.dataset.reqUpload] = r.value;
       const thumb = inp.closest('.upload').querySelector('.thumb');
-      thumb.innerHTML = file.type.startsWith('image/') ? `<img src="${esc(fileUrl(r.value))}" alt="">` : '📄';
+      thumb.innerHTML = file.type.startsWith('image/') ? `<img src="${esc(fileUrl(r.value))}" alt="">` : ic('file');
       toast('Attached – send the request to submit it');
     } catch (err) { toast(err.message, true); }
   }));
@@ -554,7 +573,7 @@ async function viewProfileLocked(editing = null) {
     e.target.disabled = true;
     try {
       await api('/api/me/change-requests', { body: { section: editing, changes, note: $('#req-note').value } });
-      toast('Request sent for review ✓ · បានផ្ញើ');
+      toast('Request sent for review · បានផ្ញើ');
       viewProfileLocked();
     } catch (err) { toast(err.message, true); e.target.disabled = false; }
   });
@@ -564,7 +583,7 @@ async function viewProfileLocked(editing = null) {
       && !confirm('If you do not agree to the declaration your membership will become INACTIVE. Continue?')) return;
     try {
       state.member = (await api('/api/me', { method: 'PUT', body: { consent } })).member;
-      toast('Saved ✓');
+      toast('Saved');
       viewProfile();
     } catch (err) { toast(err.message, true); }
   });
@@ -586,7 +605,7 @@ document.addEventListener('click', async (e) => {
   b.disabled = true;
   try {
     state.member = (await api('/api/me/privacy', { body: { accept: true } })).member;
-    toast('Thank you ✓ · អរគុណ');
+    toast('Thank you · អរគុណ');
     route();
   } catch (err) { toast(err.message, true); b.disabled = false; }
 });
@@ -612,7 +631,7 @@ function myDataCard(m) {
     <dl class="kv"><dt>Declaration</dt><dd>${consent}</dd><dt>Privacy notice</dt><dd>${accepted}</dd></dl>
     <div class="actions" style="margin-top:12px">
       <a class="btn sm light" href="#/privacy">Privacy notice · ឯកជនភាព</a>
-      <button class="btn sm light" type="button" id="dl-mydata">⬇ Download my data</button>
+      <button class="btn sm light" type="button" id="dl-mydata">${ic('download')} Download my data</button>
     </div>
     ${m.deletion_requested_at
       ? `<div class="notice red" style="margin-bottom:0"><b>Deletion requested</b> on ${esc(fmtDateTime(m.deletion_requested_at))}. The association will delete your data within 30 days.
@@ -663,7 +682,7 @@ function viewPassword() {
     try {
       await api('/api/me/password', { body: { current: f.current?.value || '', password: f.password.value } });
       state.user.must_change = false;
-      toast('Password updated ✓');
+      toast('Password updated');
       go(home());
     } catch (err) { toast(err.message, true); }
   });
@@ -692,7 +711,7 @@ async function viewAssociation(edit = false) {
     $('#qrup').addEventListener('change', async (e) => {
       try {
         await api('/api/association/qr', { body: { dataUrl: await readFile(e.target.files[0], 1000) } });
-        toast('QR uploaded ✓');
+        toast('QR uploaded');
         viewAssociation(true);
       } catch (err) { toast(err.message, true); }
     });
@@ -700,7 +719,7 @@ async function viewAssociation(edit = false) {
       e.preventDefault();
       try {
         await api('/api/association', { method: 'PUT', body: collect(e.target, null, ASSOC_FIELDS) });
-        toast('Saved ✓');
+        toast('Saved');
         go('/association');
       } catch (err) { toast(err.message, true); }
     });
@@ -740,7 +759,7 @@ async function viewAssociation(edit = false) {
       ${row('Email', a.email ? `<a href="mailto:${esc(a.email)}">${esc(a.email)}</a>` : '')}
       ${row('Address', a.address ? `<span class="pre">${esc(a.address)}</span>` : '')}</dl></section>` : ''}
     ${isAdmin() ? '<a class="btn block light" href="#/association/edit">Edit association info</a>' : ''}`;
-  $('#copyacc')?.addEventListener('click', () => navigator.clipboard?.writeText(a.account_no.replace(/\s/g, '')).then(() => toast('Copied ✓')));
+  $('#copyacc')?.addEventListener('click', () => navigator.clipboard?.writeText(a.account_no.replace(/\s/g, '')).then(() => toast('Copied')));
 }
 
 // ---------- members list (admin + moderator) ----------
@@ -783,12 +802,12 @@ async function viewAdmin() {
     : f.startsWith('L:') ? m.level === f.slice(2) : m.status === f);
   const render = () => {
     const chips = [['ALL', 'All'], ...STATUSES.map((s) => [s.key, s.key[0] + s.key.slice(1).toLowerCase()]),
-      ['DUP', '⚠ Duplicate'], ...(isAdmin() ? [['CHG', '✎ Change requests']] : []),
+      ['DUP', 'Duplicate', 'alert'], ...(isAdmin() ? [['CHG', 'Change requests', 'edit']] : []),
       ...levels().filter((l) => l.key !== 'member').map((l) => [`L:${l.key}`, l.en])];
     $('#filters').innerHTML = chips
-      .map(([k, l]) => [k, l, rows.filter((m) => matches(m, k)).length])
+      .map(([k, l, icon]) => [k, l, rows.filter((m) => matches(m, k)).length, icon])
       .filter(([k, , n]) => !k.startsWith('L:') || n > 0 || k === filter)
-      .map(([k, l, n]) => `<button type="button" data-f="${esc(k)}" class="${filter === k ? 'on' : ''}${k === 'DUP' || k === 'CHG' ? ' warn' : ''}">${esc(l)}<b>${n}</b></button>`).join('');
+      .map(([k, l, n, icon]) => `<button type="button" data-f="${esc(k)}" class="${filter === k ? 'on' : ''}${k === 'DUP' || k === 'CHG' ? ' warn' : ''}">${icon ? ic(icon) : ''}${esc(l)}<b>${n}</b></button>`).join('');
     shown = rows.filter((m) => matches(m, filter));
     $('#list').innerHTML = shown.length ? shown.map((m) => `
       <a class="mrow${selecting && selected.has(m.id) ? ' sel' : ''}" href="#/admin/m/${m.id}" data-id="${m.id}">
@@ -797,8 +816,8 @@ async function viewAdmin() {
         <div class="info"><div class="n1">${esc(m.name_kh)} · ${esc(m.name_en)}</div>
           <div class="n2">${esc(m.member_no || 'New applicant')} · ${esc(m.phone || m.email || '')}</div>
           <div class="n2">${esc(m.workplace || '')}</div>
-          ${m.dups?.length || m.pending_changes ? `<div class="flags">${m.dups?.length ? `<span class="flag dup">⚠ Possible duplicate of ${esc(m.dups.map((d) => d.member_no || d.name_en).join(', '))}</span>` : ''}
-            ${m.pending_changes ? '<span class="flag chg">✎ Change request</span>' : ''}</div>` : ''}</div>
+          ${m.dups?.length || m.pending_changes ? `<div class="flags">${m.dups?.length ? `<span class="flag dup">${ic('alert')} Possible duplicate of ${esc(m.dups.map((d) => d.member_no || d.name_en).join(', '))}</span>` : ''}
+            ${m.pending_changes ? `<span class="flag chg">${ic('edit')} Change request</span>` : ''}</div>` : ''}</div>
         ${chip(m)}
       </a>`).join('') : '<div class="empty">No members found</div>';
     renderToolbar();
@@ -872,16 +891,16 @@ function auditRow(r) {
   } catch { detail = r.detail || ''; }
   return `<div class="arow ${r.action === 'login.failed' ? 'warn' : ''}">
     <div class="a1"><b>${esc(AUDIT_LABEL[r.action] || r.action)}</b><span>${esc(fmtDateTime(r.at))}</span></div>
-    <div class="a2">${esc(r.actor || '—')}${r.target ? ` → ${esc(r.target)}` : ''}${r.ip ? ` · ${esc(r.ip)}` : ''}</div>
+    <div class="a2">${esc(r.actor || '—')}${r.target ? ` ${ic('arrow')} ${esc(r.target)}` : ''}${r.ip ? ` · ${esc(r.ip)}` : ''}</div>
     ${detail ? `<div class="a2">${esc(detail)}</div>` : ''}</div>`;
 }
 
 // Status info for moderators/admins on the member page.
 function staffNotice(m) {
   const del = m.deletion_requested_at
-    ? `<div class="notice red"><h3>⚠ Deletion requested</h3><p>The member asked for their data to be deleted on <b>${esc(fmtDateTime(m.deletion_requested_at))}</b>${m.deletion_reason ? ` – “${esc(m.deletion_reason)}”` : ''}. Please delete the record (Danger zone) within 30 days.</p></div>` : '';
+    ? `<div class="notice red"><h3>${ic('alert')} Deletion requested</h3><p>The member asked for their data to be deleted on <b>${esc(fmtDateTime(m.deletion_requested_at))}</b>${m.deletion_reason ? ` – “${esc(m.deletion_reason)}”` : ''}. Please delete the record (Danger zone) within 30 days.</p></div>` : '';
   const dup = m.dups?.length
-    ? `<div class="notice orange"><h3>⚠ Possible duplicate · អាចស្ទួន</h3>
+    ? `<div class="notice orange"><h3>${ic('alert')} Possible duplicate · អាចស្ទួន</h3>
       ${m.duplicate_email ? `<p>Imported a second time with the same email <b>${esc(m.duplicate_email)}</b> (no login was created for this copy).</p>` : ''}
       <ul class="chg">${m.dups.map((d) => `<li><a href="#/admin/m/${d.id}">${esc(d.member_no || 'New applicant')} · ${esc(d.name_kh)} · ${esc(d.name_en)}</a> – ${esc(d.reasons.join(', '))}</li>`).join('')}</ul>
       <p>Compare the records. Delete the duplicate (Danger zone), or mark it as a different person.</p>
@@ -908,7 +927,7 @@ function changeRequestHtml(r, withMember = false) {
     ${changeList(r)}
     ${r.note ? `<p class="pre note">“${esc(r.note)}”</p>` : ''}
     ${r.status === 'pending'
-      ? `<div class="actions"><button class="btn sm" style="background:var(--ok)" data-decide="approve">✓ Approve</button><button class="btn sm danger" data-decide="reject">✕ Reject</button></div>`
+      ? `<div class="actions"><button class="btn sm" style="background:var(--ok)" data-decide="approve">${ic('check')} Approve</button><button class="btn sm danger" data-decide="reject">${ic('x')} Reject</button></div>`
       : `<p class="hint" style="text-align:left;margin:4px 0 0">${esc(r.status)} by ${esc(r.decided_by || '')} · ${esc(fmtDateTime(r.decided_at))}${r.reason ? ` – ${esc(r.reason)}` : ''}</p>`}
   </div>`;
 }
@@ -925,7 +944,7 @@ function bindChangeDecisions(root, onDone) {
     } else if (!confirm('Apply these changes to the member’s record?')) return;
     try {
       await api(`/api/change-requests/${id}/decision`, { body: { decision, reason } });
-      toast(decision === 'approve' ? 'Change applied ✓' : 'Change rejected');
+      toast(decision === 'approve' ? 'Change applied' : 'Change rejected');
       onDone();
     } catch (err) { toast(err.message, true); }
   });
@@ -968,7 +987,7 @@ async function viewAdminEdit(id) {
   const role = admin ? 'admin' : 'moderator';
   const s = m.status;
   const reviewBtns = s === 'REVIEW' || (admin && ['REJECTED'].includes(s))
-    ? `<button class="btn sm" id="approve" style="background:var(--ok)">✓ Approve</button><button class="btn sm danger" id="reject">✕ Reject</button>` : '';
+    ? `<button class="btn sm" id="approve" style="background:var(--ok)">${ic('check')} Approve</button><button class="btn sm danger" id="reject">${ic('x')} Reject</button>` : '';
   const adminBtns = admin && !isNew ? `
       ${s !== 'ACTIVE' && s !== 'REVIEW' ? '<button class="btn sm" id="activate" style="background:var(--ok)">Activate</button>' : ''}
       ${s !== 'INACTIVE' ? '<button class="btn sm light" id="deactivate">Deactivate</button>' : ''}
@@ -986,7 +1005,7 @@ async function viewAdminEdit(id) {
         <form id="af" novalidate>${formHtml(m, role)}
           ${admin ? `<div class="sticky-save"><button class="btn block" type="submit">${isNew ? 'Create member' : 'Save changes'}</button></div>` : ''}
         </form>
-        ${admin && !isNew ? `<section class="card" id="mreqs" hidden><h2>✎ Change requests <small>Submitted by the member</small></h2><div id="mreqbody"></div></section>` : ''}
+        ${admin && !isNew ? `<section class="card" id="mreqs" hidden><h2>${ic('edit')} Change requests <small>Submitted by the member</small></h2><div id="mreqbody"></div></section>` : ''}
         ${admin && !isNew ? `<details class="card history" id="history"><summary><b>Record history</b> <small>Who viewed or changed this record</small></summary><div id="histbody"><div class="spin"></div></div></details>
         <details class="danger"><summary>Danger zone · លុបសមាជិក</summary>
           <p>Deleting removes this member, their login and uploaded files permanently. To confirm, type <b>${esc(m.member_no || m.email)}</b> below.</p>
@@ -1028,13 +1047,13 @@ async function viewAdminEdit(id) {
     btn.disabled = true;
     try {
       const r = await api(isNew ? '/api/members' : `/api/members/${id}`, { method: isNew ? 'POST' : 'PUT', body: collect(form, 'admin') });
-      toast('Saved ✓');
+      toast('Saved');
       isNew ? go(`/admin/m/${r.id}`) : reload();
     } catch (err) { toast(err.message, true); btn.disabled = false; }
   });
   $('#approve')?.addEventListener('click', async () => {
     if (!confirm(`Approve ${m.name_en || 'this member'}? They will become ACTIVE.`)) return;
-    try { await api(`/api/members/${id}/review`, { body: { decision: 'approve' } }); toast('Approved ✓'); reload(); } catch (err) { toast(err.message, true); }
+    try { await api(`/api/members/${id}/review`, { body: { decision: 'approve' } }); toast('Approved'); reload(); } catch (err) { toast(err.message, true); }
   });
   $('#reject')?.addEventListener('click', () => rejectDialog(id, reload));
   const setStatus = async (status) => {
@@ -1043,7 +1062,7 @@ async function viewAdminEdit(id) {
   $('#activate')?.addEventListener('click', () => setStatus('ACTIVE'));
   $('#deactivate')?.addEventListener('click', () => confirm('Deactivate this member?') && setStatus('INACTIVE'));
   $('#role')?.addEventListener('change', async (e) => {
-    try { await api(`/api/members/${id}/role`, { method: 'PUT', body: { role: e.target.value } }); toast('Role updated ✓'); } catch (err) { toast(err.message, true); }
+    try { await api(`/api/members/${id}/role`, { method: 'PUT', body: { role: e.target.value } }); toast('Role updated'); } catch (err) { toast(err.message, true); }
   });
   $('#reset')?.addEventListener('click', async () => {
     if (!confirm('Generate a new temporary password for this member?')) return;
@@ -1082,13 +1101,13 @@ async function loadSettingsForm(el) {
       <input name="kh" value="${esc(l.kh || '')}" placeholder="ខ្មែរ" aria-label="Khmer name" required>
       <input name="en" value="${esc(l.en || '')}" placeholder="English" aria-label="English name" required>
       <label class="lvl-color" title="Card colour"><input type="checkbox" name="custom" ${l.color ? 'checked' : ''}> <input type="color" name="color" value="${safeColor(l.color) || '#2a74c9'}" ${l.color ? '' : 'disabled'}></label>
-      ${l.key === 'member' ? '<span class="lvl-fixed" title="Default level">default</span>' : '<button type="button" class="icon-btn" data-rm title="Remove level">✕</button>'}
+      ${l.key === 'member' ? '<span class="lvl-fixed" title="Default level">default</span>' : `<button type="button" class="icon-btn" data-rm title="Remove level">${ic('x')}</button>`}
     </div>`;
   form.innerHTML = `<h2>ការកំណត់ <small>Settings</small></h2>
-    <h3 class="sub">✎ Profile editing · ការកែប្រែព័ត៌មាន</h3>
+    <h3 class="sub">${ic('edit')} Profile editing · ការកែប្រែព័ត៌មាន</h3>
     <label class="field"><span class="lbl">Members can edit their information for<small>Days after approval. After that the profile is locked (display only) and members send a change request per section for an admin to approve. Leave empty for no limit.</small></span>
       <div class="unit" style="max-width:260px"><input name="edit_days" inputmode="numeric" pattern="\\d*" value="${esc(s.edit_days ?? '')}" placeholder="no limit"><span>days · ថ្ងៃ</span></div></label>
-    <h3 class="sub">↻ Annual renewal · ការបន្តប្រចាំឆ្នាំ</h3>
+    <h3 class="sub">${ic('refresh')} Annual renewal · ការបន្តប្រចាំឆ្នាំ</h3>
     <label class="check"><input type="checkbox" name="renewal_enabled" ${s.renewal_enabled ? 'checked' : ''}><span>Every year on this date, members who have not renewed become <b>PENDING</b> · បន្តសមាជិកភាពប្រចាំឆ្នាំ</span></label>
     <div class="grid2 indent two" data-dep="renewal_enabled">
       <label class="field"><span class="lbl">Month</span><select name="mm">${MONTHS.map((n, i) => `<option value="${String(i + 1).padStart(2, '0')}" ${+mm === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
@@ -1097,7 +1116,7 @@ async function loadSettingsForm(el) {
     <p class="hint indent" data-dep="renewal_enabled" style="text-align:left;margin-top:0">Members approved or renewed within 60 days before the date stay active until the following year.</p>
     <label class="check"><input type="checkbox" name="inactive_enabled" ${s.inactive_enabled ? 'checked' : ''}><span>Automatically set <b>INACTIVE</b> when a member stays PENDING for · អសកម្មដោយស្វ័យប្រវត្តិ</span></label>
     <div class="indent" data-dep="inactive_enabled"><div class="unit" style="max-width:260px"><input name="inactive_years" inputmode="numeric" value="${esc(s.inactive_years || '2')}"><span>years · ឆ្នាំ</span></div></div>
-    <h3 class="sub">★ Member levels · កម្រិតសមាជិក</h3>
+    <h3 class="sub">${ic('star')} Member levels · កម្រិតសមាជិក</h3>
     <p class="hint" style="text-align:left;margin-top:0">Shown on the member card. Tick the colour box to give a level its own card colour (otherwise the logo blue is used).</p>
     <div id="lvls">${s.levels.map(levelRow).join('')}</div>
     <button type="button" class="btn sm light" id="addlvl">+ Add level</button>
@@ -1144,7 +1163,7 @@ async function loadSettingsForm(el) {
     try {
       const saved = await api('/api/settings', { method: 'PUT', body });
       state.settings = { ...state.settings, ...saved };
-      toast('Settings saved ✓');
+      toast('Settings saved');
       loadSettingsForm(form);
     } catch (err) { toast(err.message, true); }
   });
@@ -1165,7 +1184,7 @@ async function viewSystem() {
         <label class="field"><span class="lbl">Temporary password<small>At least 8 characters – they must change it at first sign-in</small></span><input name="password" type="text" minlength="8" required></label>
       </div>
       <button class="btn block" type="submit">Create user</button>
-      <p class="hint" style="text-align:left">To give a <b>member</b> moderator/admin rights, open them in Members → Account → Role.</p>
+      <p class="hint" style="text-align:left">To give a <b>member</b> moderator/admin rights, open them in Members › Account › Role.</p>
     </form>
     <section class="card" id="privreq"><h2>សំណើឯកជនភាព <small>Privacy requests</small></h2><div id="reqbody"><div class="spin"></div></div></section>
     <section class="card" id="chgreq"><h2>សំណើកែប្រែព័ត៌មាន <small>Change requests from members</small></h2><div id="chgbody"><div class="spin"></div></div></section>
@@ -1175,7 +1194,7 @@ async function viewSystem() {
         It contains personal data – <b>set a passphrase</b> so the file is encrypted, and store it safely.</p>
       <label class="field"><span class="lbl">Passphrase (recommended)<small>At least 10 characters. Without it the backup cannot be restored – keep it safe.</small></span>
         <input type="password" id="bpass" autocomplete="new-password" placeholder="Leave empty for an unencrypted backup"></label>
-      <div class="actions"><button class="btn" type="button" id="dl-backup">⬇ Download backup</button></div>
+      <div class="actions"><button class="btn" type="button" id="dl-backup">${ic('download')} Download backup</button></div>
       <details class="danger"><summary>Restore from a backup file</summary>
         <p>Restoring <b>replaces all current data</b> with the backup and signs everyone out. A safety copy of the current data is saved on the server first.</p>
         <input type="password" id="rpass" autocomplete="off" placeholder="Passphrase (if the backup is encrypted)" style="margin-bottom:8px">
@@ -1195,13 +1214,13 @@ async function viewSystem() {
         <div class="info"><div class="n1">${esc(r.name_kh)} · ${esc(r.name_en)}</div>
         <div class="n2">Deletion requested ${esc(fmtDateTime(r.requested_at))} · due ${esc(fmtDate(new Date(new Date(r.requested_at).getTime() + 30 * 864e5).toISOString()))}</div>
         ${r.reason ? `<div class="n2">“${esc(r.reason)}”</div>` : ''}</div><span class="chip c-red">DELETE</span></a>`).join('')
-      : '<p class="hint" style="text-align:left;margin:0">No open requests ✓</p>';
+      : '<p class="hint" style="text-align:left;margin:0">No open requests</p>';
   }).catch((e) => toast(e.message, true));
 
   // Change requests from members with a locked profile.
   const loadChanges = () => api('/api/change-requests?status=pending').then((rows) => {
     $('#chgbody').innerHTML = rows.length ? rows.map((r) => changeRequestHtml(r, true)).join('')
-      : '<p class="hint" style="text-align:left;margin:0">No open requests ✓</p>';
+      : '<p class="hint" style="text-align:left;margin:0">No open requests</p>';
   }).catch((e) => toast(e.message, true));
   loadChanges();
   bindChangeDecisions($('#chgreq'), loadChanges);
@@ -1235,7 +1254,7 @@ async function viewSystem() {
       const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await r.blob()), download: name });
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 3000);
-      toast('Backup downloaded ✓');
+      toast('Backup downloaded');
     } catch (e) { toast(e.message, true); }
   });
   const loadUsers = async () => {
@@ -1249,7 +1268,7 @@ async function viewSystem() {
             ${(u.member_id ? ['member', 'moderator', 'admin'] : ['moderator', 'admin']).map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}
           </select>
           <button class="icon-btn" data-reset title="Reset password">${ICON.key}</button>
-          ${u.id === state.user.id ? '' : `<button class="icon-btn" data-del title="${u.member_id ? 'Remove staff role' : 'Delete user'}">✕</button>`}
+          ${u.id === state.user.id ? '' : `<button class="icon-btn" data-del title="${u.member_id ? 'Remove staff role' : 'Delete user'}">${ic('x')}</button>`}
         </div>`).join('')}</div>`;
     } catch (e) { toast(e.message, true); }
   };
@@ -1258,7 +1277,7 @@ async function viewSystem() {
   $('#users').addEventListener('change', async (e) => {
     if (!e.target.matches('[data-role]')) return;
     const id = e.target.closest('.urow').dataset.id;
-    try { await api(`/api/users/${id}`, { method: 'PUT', body: { role: e.target.value } }); toast('Role updated ✓'); } catch (err) { toast(err.message, true); }
+    try { await api(`/api/users/${id}`, { method: 'PUT', body: { role: e.target.value } }); toast('Role updated'); } catch (err) { toast(err.message, true); }
     loadUsers();
   });
   $('#users').addEventListener('click', async (e) => {
@@ -1286,7 +1305,7 @@ async function viewSystem() {
     const f = e.target.elements;
     try {
       await api('/api/users', { body: { username: f.username.value.trim(), role: f.role.value, password: f.password.value } });
-      toast('User created ✓');
+      toast('User created');
       e.target.reset();
       loadUsers();
     } catch (err) { toast(err.message, true); }
@@ -1346,9 +1365,9 @@ function eventCard(e) {
         <div class="n2">${ICON.clock}${esc(fmtEventTime(e))}</div>
         ${e.location ? `<div class="n2">${ICON.pin}${esc(e.location)}</div>` : ''}
         <div class="n2">${ICON.seat}${esc(seatsText(e))}</div>
-        <div class="n2">💵 ${esc(priceText(e))}</div>
+        <div class="n2">${ic('cash')}${esc(priceText(e))}</div>
         ${e.phase === 'upcoming' && e.close_days > 0
-          ? `<div class="n2 ${e.registration_open ? '' : 'closed'}">⏳ ${e.registration_open ? 'Register by' : 'Registration closed'} ${esc(closeText(e))}</div>` : ''}${seatBar(e)}</div>
+          ? `<div class="n2 ${e.registration_open ? '' : 'closed'}">${ic('hourglass')}${e.registration_open ? 'Register by' : 'Registration closed'} ${esc(closeText(e))}</div>` : ''}${seatBar(e)}</div>
       ${badge}
     </a>`;
 }
@@ -1393,10 +1412,10 @@ async function viewEvent(id) {
     const showBill = paid || e.participants.some((p) => p.bill);
     const billBox = e.joined && paid && e.phase !== 'past' ? `
       <div class="notice ${e.my_bill ? 'green' : 'orange'} bill-box">
-        <b>${e.my_bill ? '✓ Payment proof uploaded · បានផ្ញើវិក្កយបត្រ' : '💵 Payment proof · វិក្កយបត្របង់ប្រាក់'}</b>
+        <b>${ic(e.my_bill ? 'check' : 'cash')} ${e.my_bill ? 'Payment proof uploaded · បានផ្ញើវិក្កយបត្រ' : 'Payment proof · វិក្កយបត្របង់ប្រាក់'}</b>
         <p>${e.my_bill ? `Uploaded ${esc(fmtDateTime(e.my_bill_at))}. <a href="${esc(fileUrl(e.my_bill))}" target="_blank" rel="noopener noreferrer">View</a> · You can replace it if needed.`
           : `Please pay <b>${esc(priceText(e))}</b> (see <a href="#/association">bank details</a>) and upload a photo of the receipt.`}</p>
-        <label class="btn sm ${e.my_bill ? 'light' : ''} upl">${e.my_bill ? 'Replace proof' : '⬆ Upload proof'}<input type="file" id="bill" accept="image/*,application/pdf" hidden></label>
+        <label class="btn sm ${e.my_bill ? 'light' : ''} upl">${ic('upload')} ${e.my_bill ? 'Replace proof' : 'Upload proof'}<input type="file" id="bill" accept="image/*,application/pdf" hidden></label>
       </div>` : '';
     const regClosed = canJoin && !e.joined && !e.registration_open;
     app.innerHTML = `${header('Event', 'ព្រឹត្តិការណ៍', '/events')}
@@ -1407,22 +1426,22 @@ async function viewEvent(id) {
         <dl class="kv">
           <dt>${ICON.clock}</dt><dd>${esc(fmtEventTime(e))}</dd>
           ${e.location || e.map_link ? `<dt>${ICON.pin}</dt><dd>${esc(e.location || '')}${mapBtn(e) ? `<div style="margin-top:6px">${mapBtn(e)}</div>` : ''}</dd>` : ''}
-          <dt>💵</dt><dd><b>${esc(priceText(e))}</b></dd>
-          ${e.phase === 'upcoming' && e.close_days > 0 ? `<dt>⏳</dt><dd>${e.registration_open ? 'Registration closes' : '<b class="closed">Registration closed</b>'} ${esc(closeText(e))}
+          <dt>${ic('cash')}</dt><dd><b>${esc(priceText(e))}</b></dd>
+          ${e.phase === 'upcoming' && e.close_days > 0 ? `<dt>${ic('hourglass')}</dt><dd>${e.registration_open ? 'Registration closes' : '<b class="closed">Registration closed</b>'} ${esc(closeText(e))}
             <small class="muted">(${e.close_days} day${e.close_days === 1 ? '' : 's'} before the start)</small></dd>` : ''}
           <dt>${ICON.seat}</dt><dd><span class="live-dot"></span><span id="seats">${esc(seatsText(e))}</span>${seatBar(e)}</dd>
         </dl>
         ${e.description ? `<p class="pre" style="font-size:14px;line-height:1.7">${esc(e.description)}</p>` : ''}
         ${canJoin ? (e.joined
-          ? `<div class="notice green" style="margin-bottom:0"><b>✓ You joined this event</b><div class="actions"><button class="btn sm light" id="leave">Cancel my seat</button></div></div>${billBox}`
+          ? `<div class="notice green" style="margin-bottom:0"><b>${ic('check')} You joined this event</b><div class="actions"><button class="btn sm light" id="leave">Cancel my seat</button></div></div>${billBox}`
           : regClosed ? `<div class="notice grey" style="margin-bottom:0"><b>Registration closed · ផុតកំណត់ចុះឈ្មោះ</b><br>Registration ended on ${esc(closeText(e))}.</div>`
           : member?.status !== 'ACTIVE' ? '<div class="notice grey" style="margin-bottom:0">Only ACTIVE members can join events.</div>'
           : `<button class="btn block" id="join" ${full ? 'disabled' : ''}>${full ? 'Event is full' : `Join this event · ចូលរួម${paid ? ` (${esc(priceText(e))})` : ''}`}</button>`)
           : e.phase === 'past' ? '<div class="notice grey" style="margin-bottom:0">This event has ended.</div>'
-          : e.phase === 'ongoing' ? `<div class="notice green" style="margin-bottom:0">${e.joined ? '<b>✓ You joined this event.</b> ' : ''}This event is happening now.</div>${billBox}` : ''}
+          : e.phase === 'ongoing' ? `<div class="notice green" style="margin-bottom:0">${e.joined ? `<b>${ic('check')} You joined this event.</b> ` : ''}This event is happening now.</div>${billBox}` : ''}
       </section>
       <section class="card"><div class="sec-head"><h2>អ្នកចូលរួម <small>Joined members (${e.joined_count}) · live</small></h2>
-        ${isStaff() && e.participants.length ? '<button class="btn sm light" type="button" id="jexport">⬇ Export to Excel</button>' : ''}</div>
+        ${isStaff() && e.participants.length ? `<button class="btn sm light" type="button" id="jexport">${ic('download')} Export to Excel</button>` : ''}</div>
         ${!isStaff() ? `<p class="hint" style="text-align:left;margin:0"><b>${e.joined_count}</b> member${e.joined_count === 1 ? ' has' : 's have'} joined${e.joined ? ', including you' : ''}.
             For privacy, only the organisers can see the list of names.</p>`
         : e.participants.length ? `${paid ? `<p class="hint" style="text-align:left;margin-top:0">Payment proofs: <b>${e.participants.filter((p) => p.bill).length} / ${e.participants.length}</b> uploaded</p>` : ''}
@@ -1430,10 +1449,10 @@ async function viewEvent(id) {
           <div class="prow"><span class="pn">${i + 1}</span><div class="info">
             <div class="n1">${p.member_id ? `<a href="#/admin/m/${p.member_id}">` : ''}${esc(p.name_kh)} · ${esc(p.name_en)}${p.member_id ? '</a>' : ''}</div>
             <div class="n2">${esc(p.member_no || '—')} · ${esc(p.gender || '—')}${p.phone ? ` · ${esc(p.phone)}` : ''}</div>
-            ${p.workplace ? `<div class="n2">🏥 ${esc(p.workplace)}</div>` : ''}
-            ${p.training ? `<div class="n2">🎓 ${esc(p.training)}</div>` : ''}</div>
+            ${p.workplace ? `<div class="n2">${ic('building')}${esc(p.workplace)}</div>` : ''}
+            ${p.training ? `<div class="n2">${ic('cap')}${esc(p.training)}</div>` : ''}</div>
             ${showBill ? (p.bill ? `<a class="bill-thumb" href="${esc(fileUrl(p.bill))}" target="_blank" rel="noopener noreferrer" title="Payment proof ${esc(fmtDateTime(p.bill_at))}">
-                ${/\.pdf$/i.test(p.bill) ? '<span>PDF</span>' : `<img src="${esc(fileUrl(p.bill))}" alt="Bill" loading="lazy" data-rm>`}<small>Bill ✓</small></a>`
+                ${/\.pdf$/i.test(p.bill) ? '<span>PDF</span>' : `<img src="${esc(fileUrl(p.bill))}" alt="Bill" loading="lazy" data-rm>`}<small>${ic('check')} Bill</small></a>`
               : '<span class="chip c-grey">No bill</span>') : ''}
           </div>`).join('')}</div>`
           : '<div class="empty" style="padding:16px 0">No one has joined yet</div>'}
@@ -1448,13 +1467,13 @@ async function viewEvent(id) {
       if (!file) return (billBusy = 0);
       try {
         await api(`/api/events/${id}/bill`, { body: { dataUrl: await readFile(file, 1600) } });
-        toast('Payment proof uploaded ✓');
+        toast('Payment proof uploaded');
       } catch (err) { toast(err.message, true); }
       billBusy = 0;
       refresh();
     });
     const act = async (method) => {
-      try { await api(`/api/events/${id}/join`, { method, body: {} }); toast(method === 'POST' ? 'Joined ✓' : 'Seat cancelled'); refresh(); } catch (err) { toast(err.message, true); refresh(); }
+      try { await api(`/api/events/${id}/join`, { method, body: {} }); toast(method === 'POST' ? 'Joined' : 'Seat cancelled'); refresh(); } catch (err) { toast(err.message, true); refresh(); }
     };
     $('#join')?.addEventListener('click', () => act('POST'));
     $('#leave')?.addEventListener('click', () => confirm('Cancel your seat?') && act('DELETE'));
@@ -1489,7 +1508,7 @@ async function viewEventEdit(id) {
     <form class="card" id="ef" novalidate>
       <label class="field"><span class="lbl">ឈ្មោះព្រឹត្តិការណ៍ *<small>Event name</small></span><input name="title" required value="${esc(e.title)}"></label>
       <label class="field"><span class="lbl">ទីកន្លែង<small>Location (a Google Maps search link is created automatically)</small></span><input name="location" value="${esc(e.location)}"></label>
-      <label class="field"><span class="lbl">តំណ Google Maps<small>Optional exact map link – in Google Maps tap Share → Copy link (https://maps.app.goo.gl/…)</small></span>
+      <label class="field"><span class="lbl">តំណ Google Maps<small>Optional exact map link – in Google Maps tap Share › Copy link (https://maps.app.goo.gl/…)</small></span>
         <input name="map_url" type="url" inputmode="url" placeholder="https://maps.app.goo.gl/..." value="${esc(e.map_url || '')}"></label>
       <div class="actions" style="margin:-4px 0 14px"><button type="button" class="btn sm light" id="testmap">${ICON.pin} Test map link</button></div>
       <div class="grid2" style="margin-bottom:14px">
@@ -1533,7 +1552,7 @@ async function viewEventEdit(id) {
     };
     try {
       const r = await api(isNew ? '/api/events' : `/api/events/${id}`, { method: isNew ? 'POST' : 'PUT', body });
-      toast('Saved ✓');
+      toast('Saved');
       go(`/events/${r.id}`);
     } catch (err) { toast(err.message, true); }
   });
@@ -1604,7 +1623,7 @@ function viewRegister() {
       const me = await api('/api/me');
       state.member = me.member;
       state.settings = me.settings;
-      toast('Registered ✓ Please complete your profile');
+      toast('Registered. Please complete your profile');
       go('/profile');
     } catch (err) { $('#rerr').textContent = err.message; }
   });

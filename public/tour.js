@@ -1,6 +1,8 @@
 // Guided system tour (Khmer + English). Each step can switch page (route), then spotlights an element.
 
 const T = (kh, en, titleKh, titleEn) => ({ kh, en, titleKh, titleEn });
+const svg = (d) => `<svg class="ic" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+const IC = { x: svg('M6 6l12 12M18 6 6 18'), back: svg('M19 12H5M11 6l-6 6 6 6'), next: svg('M5 12h14M13 6l6 6-6 6') };
 
 const STEPS = {
   applicant: [
@@ -128,12 +130,12 @@ export async function startTour(kind, onDone) {
     target?.scrollIntoView({ block: 'center', behavior: 'instant' });
     tip.innerHTML = `
       <div class="tour-head"><span class="tour-count">${n + 1} / ${steps.length}</span>
-        <button class="tour-x" data-t="skip" aria-label="Close tour">✕</button></div>
+        <button class="tour-x" data-t="skip" aria-label="Close tour">${IC.x}</button></div>
       <h3>${esc(s.titleKh)} <small>${esc(s.titleEn)}</small></h3>
       <p class="kh">${esc(s.kh)}</p><p class="en">${esc(s.en)}</p>
       <div class="tour-nav">
-        ${n ? '<button class="btn sm light" data-t="back">← ថយ · Back</button>' : '<button class="btn sm light" data-t="skip">រំលង · Skip</button>'}
-        <button class="btn sm" data-t="next">${n === steps.length - 1 ? 'រួចរាល់ · Done' : 'បន្ទាប់ · Next →'}</button>
+        ${n ? `<button class="btn sm light" data-t="back">${IC.back} ថយ · Back</button>` : '<button class="btn sm light" data-t="skip">រំលង · Skip</button>'}
+        <button class="btn sm" data-t="next">${n === steps.length - 1 ? 'រួចរាល់ · Done' : `បន្ទាប់ · Next ${IC.next}`}</button>
       </div>`;
     place();
     requestAnimationFrame(place);

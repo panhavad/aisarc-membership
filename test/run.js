@@ -27,13 +27,13 @@ async function t(id, title, fn) {
   try {
     await fn();
     results.push({ cat: current, id, title, ok: true, ms: Date.now() - start });
-    process.stdout.write(`  ✓ ${id} ${title}\n`);
+    process.stdout.write(`  PASS ${id} ${title}\n`);
   } catch (e) {
     const skip = !!e?.skip;
     // A dead server: include the end of its log so the cause is visible in the report.
     if (/fetch failed/.test(e?.message) && srv?.log) e = new Error(`${e.message} – server log: ${srv.log().slice(-600)}`);
     results.push({ cat: current, id, title, ok: skip ? null : false, ms: Date.now() - start, err: String(e?.message || e).slice(0, 300) });
-    process.stdout.write(`  ${skip ? '-' : '✗'} ${id} ${title}\n      ${e?.message}\n`);
+    process.stdout.write(`  ${skip ? 'SKIP' : 'FAIL'} ${id} ${title}\n      ${e?.message}\n`);
   }
 }
 const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
@@ -860,6 +860,21 @@ await t('C-04', 'Docker: non-root, read-only filesystem, no capabilities; app ne
   assert(/cap_drop: \[ALL\]/.test(dc), 'cap_drop'); assert(/no-new-privileges:true/.test(dc), 'no-new-privileges');
   assert(/GIT_TOKEN: ""/.test(dc), 'app does not receive GIT_TOKEN');
 });
+await t('C-05', 'No emoji or symbol characters in the interface or documentation (SVG icons only)', async () => {
+  // Emoji, dingbats (check marks, crosses, pencils, stars), misc symbols, geometric shapes, emoji variation selector.
+  const EMOJI = /[\u2300-\u23FF\u25A0-\u25FF\u2600-\u27BF\u2B00-\u2BFF\u{1F000}-\u{1FAFF}\uFE0F]/u;
+  // The UI must not use arrows as icons either (documentation prose may write "Profile → Data").
+  const ARROWS = /[\u2190-\u21FF]/u;
+  const ui = fs.readdirSync(path.join(ROOT, 'public')).filter((f) => /\.(js|css|html|json)$/.test(f)).map((f) => `public/${f}`);
+  const docs = ['README.md', 'PRIVACY.md', 'docs/DATA-PROTECTION.md', 'test/run.js'];
+  const bad = [];
+  for (const f of [...ui, ...docs]) {
+    fs.readFileSync(path.join(ROOT, f), 'utf8').split('\n').forEach((l, i) => {
+      if (EMOJI.test(l) || (f.startsWith('public/') && ARROWS.test(l))) bad.push(`${f}:${i + 1}`);
+    });
+  }
+  eq(bad.length, 0, `emoji/symbols found: ${bad.slice(0, 10).join(', ')}`);
+});
 
 fs.rmSync(tmp, { recursive: true, force: true });
 
@@ -878,14 +893,14 @@ const md = [
   `| Application version | **${PKG.version}** (commit \`${commit}\`) |`,
   `| Date | ${new Date().toISOString().replace('T', ' ').slice(0, 16)} UTC |`,
   `| Environment | Node.js ${process.version} on ${os.platform()} ${os.arch()} – temporary test database, real HTTP server |`,
-  `| Result | **${failed ? '❌' : '✅'} ${passed} passed, ${failed} failed${skipped ? `, ${skipped} not run` : ''}** (${results.length} checks) |`, '',
+  `| Result | **${failed ? 'FAILED' : 'PASSED'} – ${passed} passed, ${failed} failed${skipped ? `, ${skipped} not run` : ''}** (${results.length} checks) |`, '',
   '## Summary by area', '', '| Area | Passed | Failed | Not run |', '| --- | :---: | :---: | :---: |',
   ...cats.map((c) => { const rs = results.filter((r) => r.cat === c); return `| ${c} | ${rs.filter((r) => r.ok === true).length} | ${rs.filter((r) => r.ok === false).length} | ${rs.filter((r) => r.ok === null).length} |`; }),
   '', '## Detailed results', '',
 ];
 for (const c of cats) {
   md.push(`### ${c}`, '', '| ID | Check | Result | Time |', '| --- | --- | --- | ---: |');
-  for (const r of results.filter((x) => x.cat === c)) md.push(`| ${r.id} | ${esc(r.title)}${r.err ? `<br><sub>${esc(r.err)}</sub>` : ''} | ${r.ok === true ? '✅ Pass' : r.ok === null ? '⚠️ Not run' : '❌ Fail'} | ${r.ms} ms |`);
+  for (const r of results.filter((x) => x.cat === c)) md.push(`| ${r.id} | ${esc(r.title)}${r.err ? `<br><sub>${esc(r.err)}</sub>` : ''} | ${r.ok === true ? 'Pass' : r.ok === null ? 'Not run' : '**Fail**'} | ${r.ms} ms |`);
   md.push('');
 }
 md.push('## Compliance mapping', '',

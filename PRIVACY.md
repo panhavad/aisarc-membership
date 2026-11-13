@@ -41,9 +41,9 @@ For as long as you are a member. Applications that are not submitted within 12 m
 
 ## 7. សិទ្ធិរបស់អ្នក · Your rights
 
-មើល និង ទាញយកព័ត៌មានរបស់អ្នក (ព័ត៌មានផ្ទាល់ខ្លួន → ទាញយកទិន្នន័យរបស់ខ្ញុំ) កែតម្រូវព័ត៌មាន (ក្រោយរយៈពេលកែប្រែ ចុច «ស្នើកែប្រែ» ហើយអ្នកគ្រប់គ្រងនឹងពិនិត្យ និង ឆ្លើយតប) ដកការយល់ព្រម (ជ្រើស «មិនយល់ព្រម» – អាចធ្វើបានគ្រប់ពេល) ស្នើសុំលុបព័ត៌មាន (ព័ត៌មានផ្ទាល់ខ្លួន → ស្នើសុំលុប) និង ដាក់ពាក្យបណ្តឹងទៅសមាគម។
+មើល និង ទាញយកព័ត៌មានរបស់អ្នក (ព័ត៌មានផ្ទាល់ខ្លួន › ទាញយកទិន្នន័យរបស់ខ្ញុំ) កែតម្រូវព័ត៌មាន (ក្រោយរយៈពេលកែប្រែ ចុច «ស្នើកែប្រែ» ហើយអ្នកគ្រប់គ្រងនឹងពិនិត្យ និង ឆ្លើយតប) ដកការយល់ព្រម (ជ្រើស «មិនយល់ព្រម» – អាចធ្វើបានគ្រប់ពេល) ស្នើសុំលុបព័ត៌មាន (ព័ត៌មានផ្ទាល់ខ្លួន › ស្នើសុំលុប) និង ដាក់ពាក្យបណ្តឹងទៅសមាគម។
 
-See and download your data (Profile → Download my data), correct it (after the editing period, tap “Request change” and an admin reviews and answers it), withdraw consent (choose “Not agree” – always possible), ask for deletion (Profile → Request deletion), and complain to the association.
+See and download your data (Profile › Download my data), correct it (after the editing period, tap “Request change” and an admin reviews and answers it), withdraw consent (choose “Not agree” – always possible), ask for deletion (Profile › Request deletion), and complain to the association.
 
 ## 8. សុវត្ថិភាព និង ខូគី · Security and cookies
 

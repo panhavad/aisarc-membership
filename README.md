@@ -1,6 +1,6 @@
 # AISARC Membership Portal · ប្រព័ន្ធគ្រប់គ្រងសមាជិក
 
-**Version 1.8.0** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
+**Version 1.8.1** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
 (សមាគម គិលានុបដ្ឋាកឯកទេសដាក់ថ្នាំសណ្តំ និង ប្រពោធនកម្មកម្ពុជា).
 
 <p>
@@ -85,7 +85,7 @@
 
 ### Platform
 - Mobile-first, responsive (phone → desktop), installable as a home-screen app (PWA manifest).
-- Khmer + English throughout; Kantumruy Pro font.
+- Khmer + English throughout; Kantumruy Pro font; consistent SVG line icons (no emoji).
 - Fast and light: no front-end build step or framework (~180 KB of front-end code, uncompressed), Node.js 24 with built-in SQLite.
 - Docker Compose deployment with **auto-update on `git push`**.
 - Version number shown on the login screen and at the bottom of every page.
@@ -213,7 +213,7 @@ flowchart TD
     E5 -- Yes --> E7[Join: seat count updates live]
     E7 --> E11{Paid event?}
     E11 -- Yes --> E12[Member pays and uploads the receipt photo]
-    E12 --> E13[Organisers see Bill ✓ and export the joiner list to Excel]
+    E12 --> E13[Organisers see which bills were uploaded and export the joiner list to Excel]
     E7 --> E8[Can cancel seat until the event starts; the receipt is deleted]
     E2 --> E9[At start time: moves to Happening now with a LIVE badge]
     E9 --> E10[After the end time, or 3 hours if no end: moves to Past]
@@ -266,10 +266,10 @@ sequenceDiagram
 ### 4. Edit your information · កែប្រែព័ត៌មាន
 - Open the **Profile** tab, change what you need and tap **Save**.
 - After approval you can edit for a limited time (set by the admin, normally **30 days**). The profile shows until when.
-- After that your information is **locked** (display only). To correct something, tap **✎ Request change · ស្នើកែប្រែ**
+- After that your information is **locked** (display only). To correct something, tap **Request change · ស្នើកែប្រែ** (pencil icon)
   on that section, edit the fields, add a note and tap **Send for review · ផ្ញើ**. An admin approves it (your
   information is updated) or rejects it with a reason. You can update or cancel a pending request.
-- Fields with 🔒 (member since, membership no., status, level, validity, login email) are managed by the admin.
+- Fields with a lock icon (member since, membership no., status, level, validity, login email) are managed by the admin.
 - Choosing **Not agree · មិនយល់ព្រម** on the declaration makes your membership **INACTIVE** (always possible, even when locked).
 
 ### 5. Events · ព្រឹត្តិការណ៍
@@ -278,7 +278,7 @@ sequenceDiagram
 3. Tap **Google Maps** to get directions.
 4. Tap **Join this event · ចូលរួម** (ACTIVE members only) before registration closes. To give your seat back, tap
    **Cancel my seat** before the event starts. For privacy, members see how many people joined; only the organisers see the names.
-5. **Paid event:** pay the price (bank details in **Association**), then tap **⬆ Upload proof** on the event and choose
+5. **Paid event:** pay the price (bank details in **Association**), then tap **Upload proof** on the event and choose
    a photo of the receipt (or a PDF). You can replace it until the event ends.
 
 ### 6. Pay and renew · បង់ប្រាក់ និង បន្តសមាជិកភាព
@@ -308,14 +308,14 @@ sequenceDiagram
 
 1. Sign in. The **Review** tab opens with the **Review** filter selected. These members are waiting for you.
 2. Tap a member. Check their information, photo and certificate.
-3. Tap **✓ Approve** to make them ACTIVE. They get a membership no. and their validity starts.
-4. Or tap **✕ Reject**, choose a reason (*information missing*, *incorrect*, or *other* + message) and confirm.
+3. Tap **Approve** to make them ACTIVE. They get a membership no. and their validity starts.
+4. Or tap **Reject**, choose a reason (*information missing*, *incorrect*, or *other* + message) and confirm.
    The member sees your message and can resubmit.
 5. **Events tab → + New event**: enter name, location, an optional exact Google Maps link (Google Maps → Share →
    Copy link), start and end, number of seats (0 = unlimited), **price** (0 = free), **close registration N days
    before the start** (0 = until it starts) and description, then **Publish event**. Use **Test map link** to check the location.
 6. Open an event to see the joiners with membership no., gender, phone, workplace, technical training and **payment
-   proof** (tap the thumbnail to open it). **⬇ Export to Excel** downloads the list (bills are links that need a staff
+   proof** (tap the thumbnail to open it). **Export to Excel** downloads the list (bills are links that need a staff
    sign-in). **Edit event** or **Delete event** at the bottom.
 7. The **Duplicate** filter lists records that may belong to the same person (same phone/Telegram, email or name).
    Tell an admin, who can merge or mark them.
@@ -332,7 +332,7 @@ sequenceDiagram
 | Edit a member | Tap the member → change any field (including member since, membership no., status, **level**, valid until) → **Save changes**. |
 | Approve / reject | Same as moderators (buttons on the member page). |
 | Activate / deactivate | **Activate** or **Deactivate** on the member page. |
-| Change request | Member page → **✎ Change requests** card (or Admin tab) → **✓ Approve** applies it, **✕ Reject** needs a reason. |
+| Change request | Member page → **Change requests** card (or Admin tab) → **Approve** applies it, **Reject** needs a reason. |
 | Possible duplicate | Member page → orange **Possible duplicate** box → open the other record and compare → delete the extra one (Danger zone), or **Not a duplicate**. |
 | Make moderator / admin | Member page → **Account → Role**. |
 | Reset password | Member page → **Reset password** → share the temporary password privately (valid 72 h). |
@@ -343,16 +343,16 @@ sequenceDiagram
 | Task | How |
 | --- | --- |
 | Add a system user | **Add system user** → username, role (moderator / admin), temporary password → **Create user**. |
-| Change role / remove | In **System users**, change the role, or tap **✕** (member accounts are only demoted to member). |
+| Change role / remove | In **System users**, change the role, or tap the **close (X)** icon (member accounts are only demoted to member). |
 | Reset a staff password | Key icon next to the user. |
-| Backup | Enter a **passphrase** (recommended) → **⬇ Download backup**. Keep the file and the passphrase separately and safely. |
+| Backup | Enter a **passphrase** (recommended) → **Download backup**. Keep the file and the passphrase separately and safely. |
 | Restore | Open **Restore from a backup file** → passphrase (if encrypted) → choose the file → **Restore** → everyone is signed out. |
 | Privacy requests | Admin tab → **Privacy requests**: open the member and delete the record (Danger zone) within 30 days. |
 | Change requests | Admin tab → **Change requests from members**: all pending requests with old → new values; approve or reject (reason). |
 | Edit window | Admin tab → **Settings → Members can edit their information for N days** (after approval). Empty = never locked. |
 | Annual renewal | **Settings → Annual renewal**: tick it and choose the month/day. From then on validity runs until the next renewal date; members approved within 60 days before it stay valid until the following year. |
 | Auto-inactive | **Settings → Automatically set INACTIVE** after N years PENDING (checked daily; the reason "not renewed" is shown and logged). |
-| Member levels | **Settings → Member levels**: Khmer + English name, tick the box to give the card its own colour, **+ Add level**, ✕ to remove (members on a removed level go back to *Member*). Assign levels on the member page. |
+| Member levels | **Settings → Member levels**: Khmer + English name, tick the box to give the card its own colour, **+ Add level**, the close (X) icon to remove (members on a removed level go back to *Member*). Assign levels on the member page. |
 | Audit log | Admin tab → **Audit log**: search by action, user or `member:<id>`. A member's page shows their **Record history**. Review it monthly. |
 | Association info | **Edit association info**: name, about, fee, validity (months), bank, account, QR, contacts. |
 
@@ -515,7 +515,8 @@ The version is set in `package.json` (`npm version minor`) and shown on the logi
 
 | Version | Changes |
 | --- | --- |
-| **1.8.0** | Events: price, registration closes N days before the start, member payment-proof upload, joiner list with gender / workplace / technical training / bill, joiner export to Excel. Admin settings: profile edit window with locked profiles and per-section change requests, yearly renewal date (automatic PENDING), automatic INACTIVE after N years PENDING, member levels with card colours. Possible-duplicate detection (also on import) with Duplicate filter and "Not a duplicate". Members export follows the current search and filter. Card in the logo blue with technical training. Privacy notice 2026-11-13. |
+| **1.8.1** | No emoji anywhere: every symbol in the interface is replaced by a consistent SVG line icon (check, close, edit, alert, lock, file, download, upload, payment, workplace, training…); the test report uses plain Pass / Fail; automated check C-05 keeps emoji out of the UI and documentation. |
+| 1.8.0 | Events: price, registration closes N days before the start, member payment-proof upload, joiner list with gender / workplace / technical training / bill, joiner export to Excel. Admin settings: profile edit window with locked profiles and per-section change requests, yearly renewal date (automatic PENDING), automatic INACTIVE after N years PENDING, member levels with card colours. Possible-duplicate detection (also on import) with Duplicate filter and "Not a duplicate". Members export follows the current search and filter. Card in the logo blue with technical training. Privacy notice 2026-11-13. |
 | 1.7.0 | Personal-data protection: bilingual privacy notice (required at registration, re-accept on change), consent records, download-my-data, deletion requests, audit log and record history, event participant privacy, self-hosted fonts, encrypted backups, automatic retention (12-month drafts, 2-year audit, 90-day server backups), automated test suite and test report, data-protection document. |
 | 1.6.0 | Profile completion and submit for review (DRAFT status), bilingual system tour with **?** button, event sections (now / upcoming / past), Google Maps links, version number in the app, README manual and flowcharts. |
 | 1.5.0 | Security hardening: no phone-number passwords, session revocation, stronger hashing, rate limits, CSP/HSTS, upload checks, Docker hardening. |

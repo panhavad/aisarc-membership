@@ -4,10 +4,10 @@
 
 | | |
 | --- | --- |
-| Application version | **1.8.0** (commit `f45112c`) |
-| Date | 2026-11-12 18:53 UTC |
+| Application version | **1.8.1** (commit `9735c26`) |
+| Date | 2026-11-13 04:53 UTC |
 | Environment | Node.js v26.13.0 on win32 x64 – temporary test database, real HTTP server |
-| Result | **✅ 89 passed, 0 failed** (89 checks) |
+| Result | **PASSED – 90 passed, 0 failed** (90 checks) |
 
 ## Summary by area
 
@@ -27,7 +27,7 @@
 | Security – web & uploads | 8 | 0 | 0 |
 | Data retention | 2 | 0 | 0 |
 | Security – HTTPS mode | 2 | 0 | 0 |
-| Supply chain & repository | 4 | 0 | 0 |
+| Supply chain & repository | 5 | 0 | 0 |
 
 ## Detailed results
 
@@ -35,165 +35,166 @@
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| P-01 | Health check reports the app version | ✅ Pass | 3 ms |
-| P-02 | Public config exposes only version and public Google settings (no secrets) | ✅ Pass | 4 ms |
-| P-03 | App, privacy notice and self-hosted fonts are served; no Google Fonts | ✅ Pass | 27 ms |
-| P-04 | Bootstrap admin from .env is forced to change its password | ✅ Pass | 0 ms |
+| P-01 | Health check reports the app version | Pass | 4 ms |
+| P-02 | Public config exposes only version and public Google settings (no secrets) | Pass | 5 ms |
+| P-03 | App, privacy notice and self-hosted fonts are served; no Google Fonts | Pass | 29 ms |
+| P-04 | Bootstrap admin from .env is forced to change its password | Pass | 0 ms |
 
 ### Registration & profile
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| R-01 | Registration creates a DRAFT applicant and signs them in | ✅ Pass | 195 ms |
-| R-02 | Registration requires accepting the declaration | ✅ Pass | 5 ms |
-| R-03 | Registration requires accepting the privacy notice | ✅ Pass | 4 ms |
-| R-04 | Consent and privacy acceptance are recorded with time and version | ✅ Pass | 4 ms |
-| R-05 | Duplicate email is refused with a generic message | ✅ Pass | 4 ms |
-| R-06 | Invalid input is rejected (short password, bad email, missing name) | ✅ Pass | 12 ms |
-| R-07 | Submitting an incomplete profile is refused and lists missing items | ✅ Pass | 6 ms |
-| R-08 | Member can edit own profile; Khmer digits are normalised (១២ឆ្នាំ → 12) | ✅ Pass | 12 ms |
-| R-09 | Complete profile + photo can be submitted → REVIEW | ✅ Pass | 20 ms |
-| R-10 | Members cannot change protected fields (status, membership no., dates, login email) | ✅ Pass | 8 ms |
+| R-01 | Registration creates a DRAFT applicant and signs them in | Pass | 222 ms |
+| R-02 | Registration requires accepting the declaration | Pass | 4 ms |
+| R-03 | Registration requires accepting the privacy notice | Pass | 3 ms |
+| R-04 | Consent and privacy acceptance are recorded with time and version | Pass | 3 ms |
+| R-05 | Duplicate email is refused with a generic message | Pass | 3 ms |
+| R-06 | Invalid input is rejected (short password, bad email, missing name) | Pass | 9 ms |
+| R-07 | Submitting an incomplete profile is refused and lists missing items | Pass | 4 ms |
+| R-08 | Member can edit own profile; Khmer digits are normalised (១២ឆ្នាំ → 12) | Pass | 8 ms |
+| R-09 | Complete profile + photo can be submitted → REVIEW | Pass | 17 ms |
+| R-10 | Members cannot change protected fields (status, membership no., dates, login email) | Pass | 8 ms |
 
 ### Membership workflow
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| W-01 | Moderator sees the applicant in the review queue | ✅ Pass | 4 ms |
-| W-02 | Reject needs a reason ("other" needs a message); rejection is stored | ✅ Pass | 14 ms |
-| W-03 | Rejected member sees the reason and can resubmit | ✅ Pass | 8 ms |
-| W-04 | Approval assigns membership no., member-since and validity | ✅ Pass | 8 ms |
-| W-05 | Moderator cannot review a member who is not waiting for review | ✅ Pass | 3 ms |
-| W-06 | Expired membership becomes PENDING; renewal request goes to REVIEW | ✅ Pass | 23 ms |
-| W-07 | "Not agree" makes the member INACTIVE and records when consent changed | ✅ Pass | 21 ms |
-| W-08 | Admin can deactivate and re-activate; validity is kept while still valid | ✅ Pass | 18 ms |
+| W-01 | Moderator sees the applicant in the review queue | Pass | 4 ms |
+| W-02 | Reject needs a reason ("other" needs a message); rejection is stored | Pass | 12 ms |
+| W-03 | Rejected member sees the reason and can resubmit | Pass | 8 ms |
+| W-04 | Approval assigns membership no., member-since and validity | Pass | 8 ms |
+| W-05 | Moderator cannot review a member who is not waiting for review | Pass | 5 ms |
+| W-06 | Expired membership becomes PENDING; renewal request goes to REVIEW | Pass | 26 ms |
+| W-07 | "Not agree" makes the member INACTIVE and records when consent changed | Pass | 28 ms |
+| W-08 | Admin can deactivate and re-activate; validity is kept while still valid | Pass | 24 ms |
 
 ### Administration
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| A-01 | Admin can create, edit and search members | ✅ Pass | 20 ms |
-| A-02 | Excel export: all members and selected members | ✅ Pass | 82 ms |
-| A-03 | System users: create a moderator, change role, remove | ✅ Pass | 291 ms |
-| A-04 | An admin cannot remove or demote themself (last-admin protection) | ✅ Pass | 25 ms |
-| A-05 | Delete requires typed confirmation and also removes the login | ✅ Pass | 684 ms |
-| A-06 | Association info: admins edit (incl. payment QR), members read | ✅ Pass | 21 ms |
+| A-01 | Admin can create, edit and search members | Pass | 24 ms |
+| A-02 | Excel export: all members and selected members | Pass | 89 ms |
+| A-03 | System users: create a moderator, change role, remove | Pass | 230 ms |
+| A-04 | An admin cannot remove or demote themself (last-admin protection) | Pass | 15 ms |
+| A-05 | Delete requires typed confirmation and also removes the login | Pass | 807 ms |
+| A-06 | Association info: admins edit (incl. payment QR), members read | Pass | 22 ms |
 
 ### Events
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| E-01 | Staff create events; phases are upcoming / happening now / past | ✅ Pass | 22 ms |
-| E-02 | Google Maps: automatic search link; only real Google Maps URLs accepted | ✅ Pass | 24 ms |
-| E-03 | ACTIVE member joins; seat limit enforced; seat can be cancelled | ✅ Pass | 716 ms |
-| E-04 | Cannot join events that started or ended; non-ACTIVE members cannot join | ✅ Pass | 230 ms |
-| E-05 | Privacy: members see only the participant count; staff see names | ✅ Pass | 14 ms |
-| E-06 | Seat changes validated; members cannot create events | ✅ Pass | 13 ms |
-| E-07 | Price and "registration closes N days before": closed events refuse new joiners | ✅ Pass | 32 ms |
-| E-08 | Payment proof: joined member uploads a bill; only the member and staff can open it | ✅ Pass | 781 ms |
-| E-09 | Joiner list export to Excel (staff only): name, ID, gender, workplace, training, bill link | ✅ Pass | 20 ms |
-| E-10 | Cancelling the seat deletes the payment proof file | ✅ Pass | 8 ms |
+| E-01 | Staff create events; phases are upcoming / happening now / past | Pass | 19 ms |
+| E-02 | Google Maps: automatic search link; only real Google Maps URLs accepted | Pass | 16 ms |
+| E-03 | ACTIVE member joins; seat limit enforced; seat can be cancelled | Pass | 642 ms |
+| E-04 | Cannot join events that started or ended; non-ACTIVE members cannot join | Pass | 188 ms |
+| E-05 | Privacy: members see only the participant count; staff see names | Pass | 12 ms |
+| E-06 | Seat changes validated; members cannot create events | Pass | 9 ms |
+| E-07 | Price and "registration closes N days before": closed events refuse new joiners | Pass | 23 ms |
+| E-08 | Payment proof: joined member uploads a bill; only the member and staff can open it | Pass | 660 ms |
+| E-09 | Joiner list export to Excel (staff only): name, ID, gender, workplace, training, bill link | Pass | 21 ms |
+| E-10 | Cancelling the seat deletes the payment proof file | Pass | 112 ms |
 
 ### Settings, levels & change requests
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| G-01 | Settings are admin-only and validated | ✅ Pass | 26 ms |
-| G-02 | Member levels: admin assigns; unknown levels ignored; removed level falls back to member | ✅ Pass | 569 ms |
-| G-03 | After the edit window the profile is locked (consent stays editable) | ✅ Pass | 811 ms |
-| G-04 | Change request per section: admin rejects (reason required) or approves (applied) | ✅ Pass | 56 ms |
-| G-05 | Annual renewal date: memberships older than the last renewal date become PENDING | ✅ Pass | 1031 ms |
-| G-06 | Auto-INACTIVE after N years PENDING (daily job), with reason, audited | ✅ Pass | 1097 ms |
+| G-01 | Settings are admin-only and validated | Pass | 32 ms |
+| G-02 | Member levels: admin assigns; unknown levels ignored; removed level falls back to member | Pass | 663 ms |
+| G-03 | After the edit window the profile is locked (consent stays editable) | Pass | 706 ms |
+| G-04 | Change request per section: admin rejects (reason required) or approves (applied) | Pass | 42 ms |
+| G-05 | Annual renewal date: memberships older than the last renewal date become PENDING | Pass | 974 ms |
+| G-06 | Auto-INACTIVE after N years PENDING (daily job), with reason, audited | Pass | 1048 ms |
 
 ### Duplicates & filtered export
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| X-01 | Possible duplicates are flagged (same phone / email / name) and filterable | ✅ Pass | 29 ms |
-| X-02 | "Not a duplicate" hides the flag for that pair (admin only) | ✅ Pass | 22 ms |
-| X-03 | Import: a second response with a used email is kept as a flagged REVIEW record without login; re-import skips | ✅ Pass | 672 ms |
-| X-04 | Members export follows the current search and filter | ✅ Pass | 94 ms |
+| X-01 | Possible duplicates are flagged (same phone / email / name) and filterable | Pass | 25 ms |
+| X-02 | "Not a duplicate" hides the flag for that pair (admin only) | Pass | 16 ms |
+| X-03 | Import: a second response with a used email is kept as a flagged REVIEW record without login; re-import skips | Pass | 595 ms |
+| X-04 | Members export follows the current search and filter | Pass | 68 ms |
 
 ### Privacy & data-protection rights
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| D-01 | Right of access: member downloads all their data as JSON (no password hash) | ✅ Pass | 6 ms |
-| D-02 | Right to erasure: request, admin sees it, member can cancel | ✅ Pass | 26 ms |
-| D-03 | Privacy notice acceptance is recorded (version + time) | ✅ Pass | 11 ms |
-| D-04 | Audit log records staff access, changes, exports and decisions | ✅ Pass | 15 ms |
-| D-05 | Audit log stores field names only, never the personal values | ✅ Pass | 24 ms |
-| D-06 | Only admins can read the audit log | ✅ Pass | 6 ms |
-| D-07 | Imported members: consent recorded from the Google Form, no default password | ✅ Pass | 453 ms |
+| D-01 | Right of access: member downloads all their data as JSON (no password hash) | Pass | 5 ms |
+| D-02 | Right to erasure: request, admin sees it, member can cancel | Pass | 18 ms |
+| D-03 | Privacy notice acceptance is recorded (version + time) | Pass | 7 ms |
+| D-04 | Audit log records staff access, changes, exports and decisions | Pass | 12 ms |
+| D-05 | Audit log stores field names only, never the personal values | Pass | 13 ms |
+| D-06 | Only admins can read the audit log | Pass | 3 ms |
+| D-07 | Imported members: consent recorded from the Google Form, no default password | Pass | 269 ms |
 
 ### Backup & restore
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| B-01 | Admin downloads plain and passphrase-encrypted backups | ✅ Pass | 263 ms |
-| B-02 | Restore refuses junk, missing passphrase and wrong passphrase | ✅ Pass | 180 ms |
-| B-03 | Encrypted restore works, signs everyone out and keeps the audit log | ✅ Pass | 367 ms |
-| B-04 | A backup without any admin account is refused | ✅ Pass | 3 ms |
+| B-01 | Admin downloads plain and passphrase-encrypted backups | Pass | 195 ms |
+| B-02 | Restore refuses junk, missing passphrase and wrong passphrase | Pass | 145 ms |
+| B-03 | Encrypted restore works, signs everyone out and keeps the audit log | Pass | 302 ms |
+| B-04 | A backup without any admin account is refused | Pass | 3 ms |
 
 ### Security – access control
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| S-01 | Anonymous requests to every protected API are refused (401) | ✅ Pass | 33 ms |
-| S-02 | Members cannot use staff or admin APIs (403) | ✅ Pass | 28 ms |
-| S-03 | Moderators cannot use admin-only APIs (403) | ✅ Pass | 15 ms |
-| S-04 | IDOR: a member cannot open another member’s files | ✅ Pass | 453 ms |
-| S-05 | Mass assignment and prototype keys are ignored | ✅ Pass | 7 ms |
+| S-01 | Anonymous requests to every protected API are refused (401) | Pass | 26 ms |
+| S-02 | Members cannot use staff or admin APIs (403) | Pass | 20 ms |
+| S-03 | Moderators cannot use admin-only APIs (403) | Pass | 12 ms |
+| S-04 | IDOR: a member cannot open another member’s files | Pass | 390 ms |
+| S-05 | Mass assignment and prototype keys are ignored | Pass | 6 ms |
 
 ### Security – authentication & sessions
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| S-10 | Passwords are stored only as scrypt hashes | ✅ Pass | 7 ms |
-| S-11 | SQL-injection style input does not bypass login or damage data | ✅ Pass | 157 ms |
-| S-12 | Brute force: account locks after 10 failures even if the attacker changes IP | ✅ Pass | 1452 ms |
-| S-13 | Registration is rate-limited per IP | ✅ Pass | 733 ms |
-| S-14 | Session cookie is HttpOnly + SameSite=Lax; tampered cookies are rejected | ✅ Pass | 168 ms |
-| S-15 | Logout and password change revoke the sessions on every device | ✅ Pass | 1168 ms |
-| S-16 | Temporary passwords: must be changed (server-enforced) and expire after 72 h | ✅ Pass | 754 ms |
-| S-17 | A role change revokes that user’s existing sessions | ✅ Pass | 522 ms |
-| S-18 | Google sign-in disabled unless configured; callback verifies its CSRF token | ✅ Pass | 9 ms |
+| S-10 | Passwords are stored only as scrypt hashes | Pass | 6 ms |
+| S-11 | SQL-injection style input does not bypass login or damage data | Pass | 124 ms |
+| S-12 | Brute force: account locks after 10 failures even if the attacker changes IP | Pass | 1187 ms |
+| S-13 | Registration is rate-limited per IP | Pass | 608 ms |
+| S-14 | Session cookie is HttpOnly + SameSite=Lax; tampered cookies are rejected | Pass | 120 ms |
+| S-15 | Logout and password change revoke the sessions on every device | Pass | 753 ms |
+| S-16 | Temporary passwords: must be changed (server-enforced) and expire after 72 h | Pass | 476 ms |
+| S-17 | A role change revokes that user’s existing sessions | Pass | 374 ms |
+| S-18 | Google sign-in disabled unless configured; callback verifies its CSRF token | Pass | 6 ms |
 
 ### Security – web & uploads
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| S-20 | Security headers: CSP, frame denial, nosniff, referrer, permissions, no-store API | ✅ Pass | 10 ms |
-| S-21 | No inline event handlers or inline scripts in the front end (XSS hardening) | ✅ Pass | 5 ms |
-| S-22 | Stored XSS payloads are returned as JSON data, never as HTML | ✅ Pass | 6 ms |
-| S-23 | CSRF: form-encoded or text/plain POSTs to the API are refused (415) | ✅ Pass | 3 ms |
-| S-24 | Uploads: disguised HTML, SVG, unknown fields and oversized files are rejected | ✅ Pass | 138 ms |
-| S-25 | Served files are sandboxed; path traversal is impossible | ✅ Pass | 24 ms |
-| S-26 | No error details or stack traces are sent to clients | ✅ Pass | 7 ms |
-| S-27 | Source code, secrets and the database cannot be downloaded | ✅ Pass | 32 ms |
+| S-20 | Security headers: CSP, frame denial, nosniff, referrer, permissions, no-store API | Pass | 6 ms |
+| S-21 | No inline event handlers or inline scripts in the front end (XSS hardening) | Pass | 2 ms |
+| S-22 | Stored XSS payloads are returned as JSON data, never as HTML | Pass | 5 ms |
+| S-23 | CSRF: form-encoded or text/plain POSTs to the API are refused (415) | Pass | 3 ms |
+| S-24 | Uploads: disguised HTML, SVG, unknown fields and oversized files are rejected | Pass | 88 ms |
+| S-25 | Served files are sandboxed; path traversal is impossible | Pass | 18 ms |
+| S-26 | No error details or stack traces are sent to clients | Pass | 5 ms |
+| S-27 | Source code, secrets and the database cannot be downloaded | Pass | 21 ms |
 
 ### Data retention
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| T-01 | Unsubmitted applications older than 12 months are deleted automatically | ✅ Pass | 1337 ms |
-| T-02 | Audit entries older than 2 years are purged | ✅ Pass | 1167 ms |
+| T-01 | Unsubmitted applications older than 12 months are deleted automatically | Pass | 828 ms |
+| T-02 | Audit entries older than 2 years are purged | Pass | 704 ms |
 
 ### Security – HTTPS mode
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| H-01 | With an https PUBLIC_URL the cookie is Secure and HSTS is sent | ✅ Pass | 251 ms |
-| H-02 | Google redirect URI defaults to PUBLIC_URL/auth/google/callback | ✅ Pass | 3 ms |
+| H-01 | With an https PUBLIC_URL the cookie is Secure and HSTS is sent | Pass | 166 ms |
+| H-02 | Google redirect URI defaults to PUBLIC_URL/auth/google/callback | Pass | 1 ms |
 
 ### Supply chain & repository
 
 | ID | Check | Result | Time |
 | --- | --- | --- | ---: |
-| C-01 | No known vulnerabilities in production dependencies (npm audit, or OSV database) | ✅ Pass | 18781 ms |
-| C-02 | Secrets and personal data are excluded from git and the Docker image | ✅ Pass | 7 ms |
-| C-03 | No secrets, spreadsheets, databases or keys are tracked in git | ✅ Pass | 174 ms |
-| C-04 | Docker: non-root, read-only filesystem, no capabilities; app never gets GIT_TOKEN | ✅ Pass | 3 ms |
+| C-01 | No known vulnerabilities in production dependencies (npm audit, or OSV database) | Pass | 2993 ms |
+| C-02 | Secrets and personal data are excluded from git and the Docker image | Pass | 5 ms |
+| C-03 | No secrets, spreadsheets, databases or keys are tracked in git | Pass | 219 ms |
+| C-04 | Docker: non-root, read-only filesystem, no capabilities; app never gets GIT_TOKEN | Pass | 4 ms |
+| C-05 | No emoji or symbol characters in the interface or documentation (SVG icons only) | Pass | 24 ms |
 
 ## Compliance mapping
 
