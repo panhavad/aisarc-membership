@@ -57,6 +57,7 @@ const ICON = {
   tag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4.5A1.5 1.5 0 0 1 4.5 3H12l9 9-9 9-9-9Z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>',
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>',
   flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4.5h6V7M6 7l1 13h10l1-13M10 11v5.5M14 11v5.5"/></svg>',
   next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
 };
 // Inline icon that sits in a line of text (no emoji anywhere in the UI).
@@ -1080,7 +1081,7 @@ const AUDIT_LABEL = {
   'privacy.accept': 'Accepted privacy notice', 'data.export_own': 'Downloaded own data', 'deletion.request': 'Requested deletion',
   'deletion.cancel': 'Cancelled deletion request', 'members.export': 'Excel export', 'backup.download': 'Backup downloaded',
   'backup.restore': 'Backup restored', 'role.change': 'Role changed', 'password.reset': 'Password reset by admin',
-  'password.change': 'Password changed', 'user.create': 'System user created', 'user.delete': 'System user deleted', 'user.email': 'Sign-in email changed',
+  'password.change': 'Password changed', 'user.create': 'System user created', 'user.delete': 'System user deleted', 'user.email': 'Sign-in email changed', 'user.rename': 'Username changed',
   'file.upload': 'File uploaded', 'file.view': 'Document viewed', 'association.update': 'Association info edited',
   'event.create': 'Event created', 'event.update': 'Event edited', 'event.delete': 'Event deleted', 'retention.purge': 'Retention clean-up',
   'event.join': 'Joined event', 'event.leave': 'Left event', 'event.bill_upload': 'Payment proof uploaded', 'event.export': 'Joiner list exported',
@@ -1519,20 +1520,21 @@ async function viewSystem() {
     try {
       const users = await api('/api/users');
       $('#users').innerHTML = `<div class="ulist">${users.map((u) => `
-        <div class="urow${u.id === state.user.id ? ' me' : ''}" data-id="${u.id}" data-email="${esc(u.email || '')}">
+        <div class="urow${u.id === state.user.id ? ' me' : ''}" data-id="${u.id}" data-username="${esc(u.username)}" data-mail="${esc(u.email || '')}" data-member="${u.member_id ? 1 : ''}">
           <div class="info"><div class="n1">${esc(u.username)}${u.id === state.user.id ? ' <small>(you)</small>' : ''}</div>
             <div class="n2">${u.member_no ? `Member ${esc(u.member_no)} · ${esc(u.name || '')}` : 'System account'}</div>
-            ${u.email ? `<div class="n2">${ic('mail')}${esc(u.email)}${u.shared_with_member ? ' · <span class="flag chg">also a member login</span>' : ''}</div>` : ''}</div>
+            ${u.email ? `<div class="n2 u-mail">${ic('mail')}<span>${esc(u.email)}</span>${u.shared_with_member ? '<span class="flag chg">also a member login</span>' : ''}</div>` : ''}</div>
           <div class="u-tools">
             <select data-role ${u.id === state.user.id ? 'disabled' : ''} aria-label="Role">
               ${(u.member_id ? ['member', 'moderator', 'admin'] : ['moderator', 'admin']).map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}
             </select>
-            ${u.member_id ? '' : `<button class="icon-btn" data-email title="Sign-in email" aria-label="Sign-in email">${ic('mail')}</button>`}
+            ${u.member_id ? '' : `<button type="button" class="icon-btn" data-act="rename" title="Edit username" aria-label="Edit username">${ic('edit')}</button>
+              <button type="button" class="icon-btn" data-act="email" title="Sign-in email" aria-label="Sign-in email">${ic('mail')}</button>`}
             ${u.id === state.user.id
               ? `<a class="icon-btn" href="#/password" title="Change my password" aria-label="Change my password">${ICON.key}</a>
-                 ${state.user.other_accounts ? `<button class="icon-btn" data-switch title="Switch account (this email opens another account)" aria-label="Switch account">${ICON.users}</button>` : ''}`
-              : `<button class="icon-btn" data-reset title="Reset password" aria-label="Reset password">${ICON.key}</button>`}
-            ${u.id === state.user.id ? '' : `<button class="icon-btn" data-del title="${u.member_id ? 'Remove staff role' : 'Delete user'}" aria-label="Remove">${ic('x')}</button>`}
+                 ${state.user.other_accounts ? `<button type="button" class="icon-btn" data-switch title="Switch account (this email opens another account)" aria-label="Switch account">${ICON.users}</button>` : ''}`
+              : `<button type="button" class="icon-btn" data-act="reset" title="Reset password" aria-label="Reset password">${ICON.key}</button>`}
+            ${u.id === state.user.id ? '' : `<button type="button" class="icon-btn del" data-act="del" title="${u.member_id ? 'Remove staff role' : 'Delete user'}" aria-label="${u.member_id ? 'Remove staff role' : 'Delete user'}">${ICON.trash}</button>`}
           </div>
         </div>`).join('')}</div>`;
     } catch (e) { toast(e.message, true); }
@@ -1545,40 +1547,84 @@ async function viewSystem() {
     try { await api(`/api/users/${id}`, { method: 'PUT', body: { role: e.target.value } }); toast('Role updated'); } catch (err) { toast(err.message, true); }
     loadUsers();
   });
+  // Only the buttons act; clicking elsewhere on a row does nothing.
   $('#users').addEventListener('click', async (e) => {
-    const row = e.target.closest('.urow');
+    const btn = e.target.closest('[data-act]');
+    const row = btn?.closest('.urow');
     if (!row) return;
-    const name = row.querySelector('.n1').textContent;
-    if (e.target.closest('[data-email]')) {
-      const cur = row.dataset.email;
+    const act = btn.dataset.act;
+    const id = row.dataset.id;
+    const name = row.dataset.username;
+    const self = Number(id) === state.user.id;
+    if (act === 'email') {
+      const cur = row.dataset.mail;
       const d = modal(`<form method="dialog" id="em"><h3 style="margin-top:0">Sign-in email · អ៊ីម៉ែលចូលប្រើ</h3>
-        <p class="hint" style="text-align:left;margin-top:0">${esc(name)} can sign in with this email (password or Google) as well as the username.
+        <p class="hint" style="text-align:left;margin-top:0"><b>${esc(name)}</b> can sign in with this email (password or Google) as well as the username.
           If a member uses the same email, they choose which account to open when signing in.</p>
         <label class="field"><span class="lbl">Email</span><input type="email" name="email" value="${esc(cur)}" autocapitalize="none" placeholder="name@example.com"></label>
         <div class="actions">${cur ? '<button type="button" class="btn danger" data-clear>Remove</button>' : ''}<span style="flex:1"></span>
           <button type="button" class="btn light" data-close>Cancel</button><button class="btn" type="submit">Save</button></div></form>`);
       const save = async (email) => {
         try {
-          const r = await api(`/api/users/${row.dataset.id}`, { method: 'PUT', body: { email } });
+          const r = await api(`/api/users/${id}`, { method: 'PUT', body: { email } });
           d.close();
           toast(r.shared_with_member ? 'Saved – this email also opens a member account; the person will choose at sign-in' : 'Sign-in email saved');
-          if (r.id === state.user.id) state.user = (await api('/api/me')).user; // own email: refresh "switch account"
+          if (self) state.user = (await api('/api/me')).user; // own email: refresh "switch account"
           loadUsers();
         } catch (err) { toast(err.message, true); }
       };
       d.querySelector('[data-close]').onclick = () => d.close();
       d.querySelector('[data-clear]')?.addEventListener('click', () => save(''));
       d.querySelector('#em').addEventListener('submit', (ev) => { ev.preventDefault(); save(ev.target.elements.email.value.trim()); });
-      return;
     }
-    if (e.target.closest('[data-del]')) {
-      if (!confirm(`Remove ${name}?`)) return;
-      try { await api(`/api/users/${row.dataset.id}`, { method: 'DELETE', body: {} }); toast('Removed'); loadUsers(); } catch (err) { toast(err.message, true); }
+    if (act === 'rename') {
+      const d = modal(`<form method="dialog" id="rn"><h3 style="margin-top:0">Edit username · កែឈ្មោះអ្នកប្រើ</h3>
+        <p class="hint" style="text-align:left;margin-top:0">${self ? 'You' : `<b>${esc(name)}</b>`} will sign in with the new username from now on${row.dataset.mail ? ' (the sign-in email keeps working)' : ''}.</p>
+        <label class="field"><span class="lbl">Username<small>3–64 letters, numbers or . _ @ + -</small></span>
+          <input name="username" value="${esc(name)}" required autocapitalize="none" autocomplete="off" pattern="[\\w.@+\\-]{3,64}"></label>
+        <div class="actions" style="justify-content:flex-end"><button type="button" class="btn light" data-close>Cancel</button><button class="btn" type="submit">Save</button></div></form>`);
+      d.querySelector('[data-close]').onclick = () => d.close();
+      d.querySelector('#rn').addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const username = ev.target.elements.username.value.trim();
+        if (username === name) return d.close();
+        try {
+          await api(`/api/users/${id}`, { method: 'PUT', body: { username } });
+          d.close();
+          toast('Username changed');
+          if (self) state.user = (await api('/api/me')).user;
+          loadUsers();
+        } catch (err) { toast(err.message, true); }
+      });
     }
-    if (e.target.closest('[data-reset]')) {
+    if (act === 'del') {
+      const member = !!row.dataset.member;
+      const d = modal(`<form method="dialog" id="du" class="danger-dialog">
+        <h3 style="margin-top:0" class="danger-title">${ic('alert')} ${member ? 'Remove staff role' : 'Delete system user'} · ${member ? 'ដកតួនាទី' : 'លុបអ្នកប្រើ'}</h3>
+        <div class="notice red" style="margin-top:0">${member
+          ? `<p><b>${esc(name)}</b> will lose their admin / moderator rights and be signed out. Their member record and login stay.</p>`
+          : `<p><b>${esc(name)}</b> will be <b>deleted permanently</b> and signed out everywhere. They can no longer sign in. This cannot be undone.</p>`}</div>
+        <label class="field"><span class="lbl">Type the username to confirm<small>${esc(name)}</small></span>
+          <input name="confirm" autocomplete="off" autocapitalize="none" data-icon="alert"></label>
+        <div class="actions" style="justify-content:flex-end"><button type="button" class="btn light" data-close>Cancel</button>
+          <button class="btn btn-danger" type="submit" disabled>${ICON.trash} ${member ? 'Remove role' : 'Delete permanently'}</button></div></form>`);
+      const f = d.querySelector('#du');
+      d.querySelector('[data-close]').onclick = () => d.close();
+      f.elements.confirm.addEventListener('input', (ev) => { f.querySelector('[type=submit]').disabled = ev.target.value.trim().toLowerCase() !== name.toLowerCase(); });
+      f.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        try {
+          await api(`/api/users/${id}`, { method: 'DELETE', body: { confirm: f.elements.confirm.value.trim() } });
+          d.close();
+          toast(member ? 'Staff role removed' : 'User deleted');
+          loadUsers();
+        } catch (err) { toast(err.message, true); }
+      });
+    }
+    if (act === 'reset') {
       if (!confirm(`Generate a new temporary password for ${name}?`)) return;
       try {
-        const r = await api(`/api/users/${row.dataset.id}/password`, { body: {} });
+        const r = await api(`/api/users/${id}/password`, { body: {} });
         const d = modal(`<h3 style="margin-top:0">Temporary password</h3><p>Share it privately. It expires in 72 hours and must be changed at first sign-in.</p>
           <div class="field"><span class="lbl">Username</span><div class="mono">${esc(r.username)}</div></div>
           <div class="field"><span class="lbl">Password</span><div class="mono">${esc(r.password)}</div></div>

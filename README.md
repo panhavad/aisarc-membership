@@ -1,6 +1,6 @@
 # AISARC Membership Portal · ប្រព័ន្ធគ្រប់គ្រងសមាជិក
 
-**Version 1.9.9** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
+**Version 1.9.10** · Mobile-first membership management for **ស.គ.ឯ.ស.ប.ក – AISARC**
 (សមាគម គិលានុបដ្ឋាកឯកទេសដាក់ថ្នាំសណ្តំ និង ប្រពោធនកម្មកម្ពុជា).
 
 <p>
@@ -355,7 +355,8 @@ sequenceDiagram
 | Add a system user | **Add system user** → username, role (moderator / admin), temporary password, optional **sign-in email** → **Create user**. |
 | Sign-in email | Envelope button next to a system user → enter or remove the email. They can then sign in with that email (password or Google) as well as the username. If a member uses the same email, the person chooses which account to open at sign-in. |
 | Your own password / email | Admins: Admin tab › System users › your **(you)** row: key = change your password, envelope = your sign-in email, and a switch button when your email opens another account. Moderators without a member profile: **Account** tab. Members (also staff members): **Profile › My account**. |
-| Change role / remove | In **System users**, change the role, or tap the **close (X)** icon (member accounts are only demoted to member). |
+| Change role / rename | In **System users**, change the role in the list, or tap the **pencil** to edit the username of an admin / moderator account (member accounts use the member email). |
+| Delete / remove | Red **bin** icon → read the warning → type the username → **Delete permanently** (member accounts: **Remove role**, they stay a member). |
 | Reset a staff password | Key icon next to the user. |
 | Backup | Enter a **passphrase** (recommended) → **Download backup**. Keep the file and the passphrase separately and safely. |
 | Restore | Open **Restore from a backup file** → passphrase (if encrypted) → choose the file → **Restore** → everyone is signed out. |
@@ -529,7 +530,8 @@ The version is set in `package.json` (`npm version minor`) and shown on the logi
 
 | Version | Changes |
 | --- | --- |
-| **1.9.9** | Telegram fields use the Telegram (paper plane) icon. |
+| **1.9.10** | System users: only the buttons react (clicking a row no longer opens the sign-in email dialog), edit username (pencil), red delete (bin) with a warning and typed-username confirmation (also required by the server). |
+| 1.9.9 | Telegram fields use the Telegram (paper plane) icon. |
 | 1.9.8 | Pass card logo: clean version (`public/img/logo-card.png`) – perfectly round, crisp outer ring, no blurry edge – with an even white outline. |
 | 1.9.7 | Pass card: Birthday and Member since on one full-width row under the photo (dates never wrap; Member since lines up with the photo), content centred on the card. |
 | 1.9.6 | Spacing fixes: buttons no longer touch the list above them (audit log, record history), the member page's change-request card and the "Test map link" button have proper space. |

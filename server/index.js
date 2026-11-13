@@ -1048,6 +1048,18 @@ app.put('/api/users/:id', requireAdmin, (req, res) => {
   const u = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(req.params.id));
   if (!u) return res.status(404).json({ error: 'Not found' });
   const b = req.body || {};
+  if ('username' in b) {
+    if (u.member_id) return res.status(400).json({ error: 'Member accounts sign in with the member email (change it on the member page)' });
+    const username = String(b.username || '').trim();
+    if (!/^[\w.@+-]{3,64}$/.test(username)) return res.status(400).json({ error: 'Username: 3–64 letters, numbers or . _ @ + -' });
+    if (username !== u.username) {
+      // Must not match another account's username or sign-in email (a sign-in name opens one set of accounts).
+      if (db.prepare('SELECT id FROM users WHERE id != ? AND (username = ? OR (email IS NOT NULL AND lower(email) = lower(?)))').get(u.id, username, username))
+        return res.status(400).json({ error: 'This username is already used by another account' });
+      db.prepare('UPDATE users SET username = ? WHERE id = ?').run(username, u.id);
+      audit(req, 'user.rename', `user:${u.id}`, { from: u.username, to: username });
+    }
+  }
   if ('email' in b) {
     if (u.member_id) return res.status(400).json({ error: 'Member accounts sign in with the member email (change it on the member page)' });
     let email;
@@ -1090,6 +1102,9 @@ app.delete('/api/users/:id', requireAdmin, (req, res) => {
   if (!u) return res.status(404).json({ error: 'Not found' });
   if (u.id === req.user.id) return res.status(400).json({ error: 'You cannot remove yourself' });
   if (u.role === 'admin' && adminCount() <= 1) return res.status(400).json({ error: 'Cannot remove the last admin' });
+  // Destructive: the admin must type the username to confirm.
+  if (String(req.body?.confirm || '').trim().toLowerCase() !== u.username.toLowerCase())
+    return res.status(400).json({ error: 'Type the username to confirm' });
   if (u.member_id) db.prepare("UPDATE users SET role = 'member', token_version = token_version + 1 WHERE id = ?").run(u.id);
   else db.prepare('DELETE FROM users WHERE id = ?').run(u.id);
   audit(req, u.member_id ? 'role.change' : 'user.delete', `user:${u.id}`, { username: u.username, from: u.role });

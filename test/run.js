@@ -309,11 +309,17 @@ try {
     const rowsOne = XLSX.utils.sheet_to_json(XLSX.read(one.buf).Sheets.Members, { header: 1 });
     assert(rowsAll.length > 2, 'all rows'); eq(rowsOne.length, 2, 'header + 1 selected');
   });
-  await t('A-03', 'System users: create a moderator, change role, remove', async () => {
+  await t('A-03', 'System users: create a moderator, change role, rename, remove (typed confirmation)', async () => {
     eq((await A.post('/api/users', { username: 'tmpmod', role: 'moderator', password: 'TempMod-2026!' })).status, 200, 'create');
     const u = (await A.get('/api/users')).json.find((x) => x.username === 'tmpmod');
     eq((await A.put(`/api/users/${u.id}`, { role: 'admin' })).status, 200, 'promote');
-    eq((await A.del(`/api/users/${u.id}`)).status, 200, 'remove');
+    eq((await A.put(`/api/users/${u.id}`, { username: 'bad name!' })).status, 400, 'invalid username');
+    eq((await A.put(`/api/users/${u.id}`, { username: 'admin' })).status, 400, 'username already used');
+    eq((await A.put(`/api/users/${u.id}`, { username: 'tmpmod2' })).json.username, 'tmpmod2', 'renamed');
+    eq((await client(B).post('/api/login', { username: 'tmpmod2', password: 'TempMod-2026!' })).status, 200, 'signs in with new username');
+    eq((await A.del(`/api/users/${u.id}`)).status, 400, 'delete needs the typed username');
+    eq((await A.del(`/api/users/${u.id}`, { confirm: 'tmpmod' })).status, 400, 'wrong confirmation');
+    eq((await A.del(`/api/users/${u.id}`, { confirm: 'TMPMOD2' })).status, 200, 'remove');
   });
   await t('A-04', 'An admin cannot remove or demote themself (last-admin protection)', async () => {
     const me = (await A.get('/api/me')).json.user;

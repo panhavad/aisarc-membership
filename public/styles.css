@@ -575,3 +575,11 @@ form + .card, form + details.card { margin-top: 14px; }
 .pass > .pass-2col { grid-template-columns: minmax(0, 1fr) minmax(34%, max-content); }
 /* card logo: clean circular artwork (logo-card.png) with an even white outline */
 .pass-logo { padding: 3px; background: #fff; border-radius: 50%; box-shadow: 0 2px 8px rgba(13, 34, 102, .25); object-fit: contain; }
+/* system users: red delete, email line wraps instead of cutting the flag */
+.urow .icon-btn.del { color: var(--danger); }
+.urow .icon-btn.del:hover { background: #fee2e2; }
+.u-mail { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; white-space: normal; overflow: visible; }
+.u-mail > span:first-of-type { overflow-wrap: anywhere; }
+.btn.btn-danger { background: var(--danger); color: #fff; }
+.btn.btn-danger:disabled { background: #fca5a5; }
+.danger-title { color: var(--danger); display: flex; align-items: center; gap: 8px; }
