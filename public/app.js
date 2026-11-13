@@ -318,12 +318,12 @@ function passCard(m) {
         <div><div class="pass-label">Name</div><div class="pass-val kh">${esc(m.name_kh || '—')}</div><div class="en">${esc(m.name_en || '')}</div></div>
         <div><div class="pass-label">Technical training</div><div class="pass-val small">${esc(m.training || '—')}</div></div>
         <div><div class="pass-label">Membership No.</div><div class="pass-val">${esc(m.member_no || '—')}</div></div>
-        <div class="pass-2col">
-          <div><div class="pass-label">Birthday</div><div class="pass-val">${esc(m.dob || '—')}</div></div>
-          <div><div class="pass-label">Member since</div><div class="pass-val">${esc(fmtDate(m.joined_at))}</div></div>
-        </div>
       </div>
       <div class="pass-photo">${photoHtml(m)}</div>
+    </div>
+    <div class="pass-2col">
+      <div><div class="pass-label">Birthday</div><div class="pass-val">${esc(m.dob || '—')}</div></div>
+      <div><div class="pass-label">Member since</div><div class="pass-val">${esc(fmtDate(m.joined_at))}</div></div>
     </div>
     ${active ? '<div class="pass-clock"><i></i><span data-clock></span></div>' : ''}
   </section>`;

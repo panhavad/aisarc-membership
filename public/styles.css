@@ -564,3 +564,12 @@ form + .card, form + details.card { margin-top: 14px; }
 .card h2 { flex-wrap: wrap; column-gap: 8px; row-gap: 2px; }
 .card h2 small { flex: 1 1 auto; min-width: 0; }
 .audit-tools select { height: 44px; }
+/* pass card: Birthday / Member since in a full-width row under the photo, each value on one line */
+.pass > .pass-2col { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.pass > .pass-2col .pass-val { white-space: nowrap; }
+/* name block + date row are centred together between the header and the clock */
+.pass-body { flex: 0 0 auto; margin-top: auto; }
+.pass > .pass-2col { margin-bottom: auto; }
+/* second column starts exactly at the photo edge (same widths and gap as the row above) */
+.pass > .pass-2col { grid-template-columns: minmax(0, 1fr) 34%; gap: 12px; }
+.pass > .pass-2col { grid-template-columns: minmax(0, 1fr) minmax(34%, max-content); }
