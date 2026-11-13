@@ -309,7 +309,7 @@ function passCard(m) {
   return `
   <section class="pass${active ? ' on' : ''}${color ? ' lvl' : ''}" ${color ? `style="--lvl:${color}"` : ''} aria-label="Membership pass">
     <div class="pass-head">
-      <div class="pass-brand"><img class="pass-logo" src="${IMG('logo.png')}" alt="AISARC logo"><img class="pass-org" src="${IMG('name.png')}" alt="ស.គ.ឯ.ស.ប.ក AISARC"></div>
+      <div class="pass-brand"><img class="pass-logo" src="${IMG('logo-card.png')}" alt="AISARC logo"><img class="pass-org" src="${IMG('name.png')}" alt="ស.គ.ឯ.ស.ប.ក AISARC"></div>
       <div class="pass-status"><div class="pass-label">Status</div><span class="pass-pill s-${s.color}">${esc(s.key)}</span>
         ${lvl.key !== 'member' ? `<div class="pass-level">${esc(lvl.kh)}<br>${esc(lvl.en)}</div>` : ''}</div>
     </div>

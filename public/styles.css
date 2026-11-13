@@ -573,3 +573,5 @@ form + .card, form + details.card { margin-top: 14px; }
 /* second column starts exactly at the photo edge (same widths and gap as the row above) */
 .pass > .pass-2col { grid-template-columns: minmax(0, 1fr) 34%; gap: 12px; }
 .pass > .pass-2col { grid-template-columns: minmax(0, 1fr) minmax(34%, max-content); }
+/* card logo: clean circular artwork (logo-card.png) with an even white outline */
+.pass-logo { padding: 3px; background: #fff; border-radius: 50%; box-shadow: 0 2px 8px rgba(13, 34, 102, .25); object-fit: contain; }
